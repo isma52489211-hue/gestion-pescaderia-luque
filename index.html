@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestión Pescadería Luque</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="cabecera">
+    <div class="marca">
+      <span class="logo" aria-hidden="true">🐟</span>
+      <div>
+        <h1>Pescadería Luque</h1>
+        <p>Gestión de caja</p>
+      </div>
+    </div>
+    <nav class="pestanas" role="tablist">
+      <button class="pestana activa" data-vista="caja" role="tab">Caja del día</button>
+      <button class="pestana" data-vista="resumen" role="tab">Resumen</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- CAJA DEL DÍA -->
+    <section id="vista-caja" class="vista">
+      <div class="barra-fecha">
+        <button class="btn-icono" id="dia-anterior" aria-label="Día anterior">‹</button>
+        <input type="date" id="fecha">
+        <button class="btn-icono" id="dia-siguiente" aria-label="Día siguiente">›</button>
+        <button class="btn-secundario" id="ir-hoy">Hoy</button>
+      </div>
+
+      <div id="estado-dia" class="estado"></div>
+
+      <!-- Apertura -->
+      <form id="form-apertura" class="tarjeta" hidden>
+        <h2>Apertura de caja</h2>
+        <p class="ayuda">¿Con cuánto dinero en efectivo empiezas hoy?</p>
+        <label>Fondo inicial (€)
+          <input type="text" inputmode="decimal" id="fondo-inicial" placeholder="0,00" required>
+        </label>
+        <button type="submit" class="btn-principal">Abrir caja</button>
+      </form>
+
+      <!-- Cierre -->
+      <form id="form-cierre" class="tarjeta" hidden>
+        <h2>Cierre de caja</h2>
+        <p class="ayuda">Fondo inicial: <strong id="cierre-fondo"></strong>
+          · <button type="button" class="enlace" id="editar-apertura">cambiar</button></p>
+
+        <fieldset>
+          <legend>Ventas del día (según ticket Z / datáfono)</legend>
+          <label>Efectivo (€)
+            <input type="text" inputmode="decimal" id="ventas-efectivo" placeholder="0,00">
+          </label>
+          <label>Tarjeta (€)
+            <input type="text" inputmode="decimal" id="ventas-tarjeta" placeholder="0,00">
+          </label>
+          <label>Bizum (€)
+            <input type="text" inputmode="decimal" id="ventas-bizum" placeholder="0,00">
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Salidas de efectivo</legend>
+          <label>Gastos pagados con dinero de la caja (€)
+            <input type="text" inputmode="decimal" id="gastos" placeholder="0,00">
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Recuento</legend>
+          <label>Efectivo contado en caja (€)
+            <input type="text" inputmode="decimal" id="contado" placeholder="0,00">
+          </label>
+          <details id="desglose">
+            <summary>Contar por billetes y monedas</summary>
+            <div id="desglose-filas" class="desglose"></div>
+            <p class="ayuda">El total se pasa solo a «Efectivo contado».</p>
+          </details>
+          <label>Fondo que dejas para mañana (€)
+            <input type="text" inputmode="decimal" id="fondo-manana" placeholder="0,00">
+          </label>
+        </fieldset>
+
+        <label>Notas
+          <textarea id="notas" rows="2" placeholder="Opcional"></textarea>
+        </label>
+
+        <div class="cuadre" id="cuadre"></div>
+
+        <button type="submit" class="btn-principal">Cerrar caja</button>
+      </form>
+
+      <!-- Día cerrado -->
+      <div id="dia-cerrado" class="tarjeta" hidden>
+        <h2>Caja cerrada</h2>
+        <dl id="detalle-cierre" class="detalle"></dl>
+        <button type="button" class="btn-secundario" id="reabrir">Editar cierre</button>
+      </div>
+    </section>
+
+    <!-- RESUMEN -->
+    <section id="vista-resumen" class="vista" hidden>
+      <div class="barra-fecha">
+        <label class="en-linea">Mes
+          <input type="month" id="mes">
+        </label>
+      </div>
+
+      <div class="cifras" id="cifras-mes"></div>
+
+      <div class="tarjeta">
+        <h2>Días del mes</h2>
+        <div class="tabla-envoltorio">
+          <table class="tabla">
+            <thead>
+              <tr>
+                <th>Día</th><th>Ventas</th><th>Efectivo</th><th>Tarjeta</th>
+                <th>Bizum</th><th>Gastos</th><th>Descuadre</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-dias"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Copia de seguridad</h2>
+        <p class="ayuda">Los datos se guardan en este dispositivo. Descarga una copia de vez en cuando.</p>
+        <div class="botones">
+          <button type="button" class="btn-secundario" id="exportar">Descargar copia</button>
+          <label class="btn-secundario">Restaurar copia
+            <input type="file" id="importar" accept="application/json" hidden>
+          </label>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
