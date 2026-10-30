@@ -14,8 +14,12 @@ const FRESCO_INICIAL = [
   'Pijotas', 'Pijotón',
 ];
 const GORDO_INICIAL = ['Atún', 'Salmón', 'Marrajo', 'Pez limón', 'Pez espada', 'Cazón'];
+const MARISCO_INICIAL = [
+  'Patas de cangrejo', 'Camarones', 'Patas rotas', 'Gambón',
+  'Langostinos cocidos', 'Langostinos crudos', 'Gamba cruda', 'Gamba cocida',
+];
 
-const TIPOS = { fresco: 'Pescado fresco', gordo: 'Pescado gordo', congelado: 'Congelado' };
+const TIPOS = { fresco: 'Pescado fresco', gordo: 'Pescado gordo', marisco: 'Marisco', congelado: 'Congelado' };
 
 const $ = (id) => document.getElementById(id);
 const euros = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -78,11 +82,20 @@ function catalogoInicial() {
   return [
     ...FRESCO_INICIAL.map((nombre) => ({ id: slug(nombre), nombre, tipo: 'fresco', merma: 0 })),
     ...GORDO_INICIAL.map((nombre) => ({ id: slug(nombre), nombre, tipo: 'gordo', merma: 0 })),
+    ...MARISCO_INICIAL.map((nombre) => ({ id: slug(nombre), nombre, tipo: 'marisco', merma: 0 })),
   ];
 }
 
 let productos = leer(CLAVE_PRODUCTOS, null) || catalogoInicial();
 let dias = leer(CLAVE_DIAS, {});
+
+// Catálogos guardados antes de que existiera el marisco: se añade una sola vez
+if (!localStorage.getItem('gpl.marisco')) {
+  for (const nombre of MARISCO_INICIAL) {
+    if (!productos.some((p) => p.id === slug(nombre))) productos.push({ id: slug(nombre), nombre, tipo: 'marisco', merma: 0 });
+  }
+  localStorage.setItem('gpl.marisco', '1');
+}
 
 function guardar() {
   localStorage.setItem(CLAVE_PRODUCTOS, JSON.stringify(productos));
@@ -177,7 +190,7 @@ function pintarInicio() {
   const fecha = $('fecha').value;
   const d = dias[fecha] || { fresco: {}, congelado: {} };
 
-  for (const tipo of ['fresco', 'gordo']) {
+  for (const tipo of ['fresco', 'gordo', 'marisco']) {
     const lista = porTipo(tipo);
     $('inicio-' + tipo).innerHTML = lista.length
       ? filaCab('Producto', 'Kg', '€/kg') + lista.map((p) => {

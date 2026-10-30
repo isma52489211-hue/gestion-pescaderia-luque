@@ -4,11 +4,11 @@ Aplicación web para controlar la caja de la Pescadería Luque **a partir del g�
 
 ## Cómo funciona
 
-1. **Inicio del día** (Ismael): kilos exactos con los que empieza cada producto fresco y pescado gordo, precio de venta del día (€/kg), unidades de congelado repuestas y fondo de caja.
+1. **Inicio del día** (Ismael): kilos exactos con los que empieza cada producto fresco, pescado gordo y marisco, precio de venta del día (€/kg), unidades de congelado repuestas y fondo de caja.
 2. **Cierre** (tienda): kilos que sobran de cada producto, unidades de congelado que quedan, efectivo contado (con contador de billetes y monedas), tarjeta, Bizum y gastos pagados de caja.
 3. **Cuadre**: lo vendido por producto y la diferencia entre lo que debería haber y lo cobrado.
 
-- Fresco: `kilos inicio − kilos que sobran = kilos vendidos` (con % de merma por producto si la tiene, p. ej. atún y cazón).
+- Fresco: `kilos inicio − kilos que sobran = kilos vendidos` (con % de merma por producto si la tiene, p. ej. salmón).
 - Congelado: `stock + repuesto − quedan = unidades vendidas`. La pestaña **Congelado** muestra el stock actual y lo que hay que reponer.
 - **Resumen** mensual por día y por producto. **Productos**: catálogo editable y copia de seguridad.
 
