@@ -1,2 +1,2 @@
 .claude/
-*.json.bak
+.playwright-mcp/

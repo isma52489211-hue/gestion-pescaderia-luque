@@ -2,128 +2,214 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gestión Pescadería Luque</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#22326A">
+  <title>Caja Luque · Pescaderías Adolfo</title>
+  <link rel="icon" href="assets/simbolo-adolfo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;900&family=Source+Code+Pro:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="cabecera">
-    <div class="marca">
-      <span class="logo" aria-hidden="true">🐟</span>
-      <div>
-        <h1>Pescadería Luque</h1>
-        <p>Gestión de caja</p>
+    <div class="cabecera-in">
+      <div class="logo-marco">
+        <img src="assets/logo-adolfo.png" alt="Pescaderías Adolfo · Cinco generaciones" width="400" height="137">
+      </div>
+      <div class="tienda">
+        <span class="dato-etiqueta">Tienda de Luque</span>
+        <span>Control de caja</span>
       </div>
     </div>
-    <nav class="pestanas" role="tablist">
-      <button class="pestana activa" data-vista="dia" role="tab">Día</button>
-      <button class="pestana" data-vista="congelado" role="tab">Congelado</button>
-      <button class="pestana" data-vista="resumen" role="tab">Resumen</button>
-      <button class="pestana" data-vista="productos" role="tab">Productos</button>
-    </nav>
   </header>
 
+  <nav class="nav" aria-label="Secciones">
+    <div class="nav-in">
+      <button class="nav-btn" data-vista="inicio">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 30L32 12l22 18M16 26v26h32V26"/><path d="M27 52V38h10v14"/></svg>
+        <span>Inicio</span>
+      </button>
+      <button class="nav-btn" data-vista="dia">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="14" y="12" width="36" height="44" rx="4"/><path d="M25 8h14v8H25zM22 30h20M22 38h20M22 46h12"/></svg>
+        <span>Día</span>
+      </button>
+      <button class="nav-btn" data-vista="congelado">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 20l22-10 22 10-22 10zM10 20v27l22 9 22-9V20M32 30v26"/><path d="M42 29v15M36 33l12 7M36 40l12-7"/></svg>
+        <span>Congelado</span>
+      </button>
+      <button class="nav-btn" data-vista="resumen">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 54h44"/><path d="M16 54V36h8v18M28 54V22h8v32M40 54V30h8v24"/></svg>
+        <span>Resumen</span>
+      </button>
+      <button class="nav-btn" data-vista="productos">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M24 18h28M24 32h28M24 46h28"/><path d="M12 15l3 3-3 3-3-3zM12 29l3 3-3 3-3-3zM12 43l3 3-3 3-3-3z"/></svg>
+        <span>Productos</span>
+      </button>
+    </div>
+  </nav>
+
   <main>
+    <!-- INICIO -->
+    <section id="vista-inicio" class="vista">
+      <p class="sobretitulo" id="inicio-fecha"></p>
+      <h1>Hoy en Luque</h1>
+      <div id="inicio-estado"></div>
+      <div class="cifras" id="inicio-cifras"></div>
+      <section class="tarjeta">
+        <h2>Últimos 7 días</h2>
+        <p class="ayuda">Lo cobrado cada día. En gris claro, días sin caja apuntada (se muestra lo que debería haberse vendido).</p>
+        <div id="inicio-grafico"></div>
+      </section>
+      <div id="inicio-avisos"></div>
+    </section>
+
     <!-- DÍA -->
-    <section id="vista-dia" class="vista">
+    <section id="vista-dia" class="vista" hidden>
       <div class="barra-fecha">
         <button class="btn-icono" id="dia-anterior" aria-label="Día anterior">‹</button>
-        <input type="date" id="fecha">
+        <input type="date" id="fecha" aria-label="Fecha">
         <button class="btn-icono" id="dia-siguiente" aria-label="Día siguiente">›</button>
-        <button class="btn-secundario" id="ir-hoy">Hoy</button>
+        <button class="btn secundario" id="ir-hoy">Hoy</button>
       </div>
-      <p id="fecha-larga" class="estado"></p>
+      <h1 id="fecha-larga" class="h1-fecha"></h1>
 
-      <div class="tarjeta">
-        <h2><span class="paso">1</span> Inicio del día</h2>
-        <p class="ayuda">Lo rellena Ismael: kilos exactos con los que empieza el día cada producto y su precio de venta de hoy.</p>
-        <label class="corto">Fondo de caja al empezar (€)
-          <input type="text" inputmode="decimal" data-caja="fondo" placeholder="0,00">
-        </label>
-        <h3>Pescado fresco</h3>
-        <div class="filas" id="inicio-fresco"></div>
-        <h3>Pescado gordo</h3>
-        <div class="filas" id="inicio-gordo"></div>
-        <h3>Marisco</h3>
-        <div class="filas" id="inicio-marisco"></div>
-        <h3>Congelado</h3>
-        <div class="filas" id="inicio-congelado"></div>
-      </div>
+      <ol class="pasos" aria-label="Pasos del día">
+        <li><button data-paso="1"><span class="paso-num">1</span><span class="paso-txt"><strong>Género</strong><small id="estado-paso-1"></small></span></button></li>
+        <li><button data-paso="2"><span class="paso-num">2</span><span class="paso-txt"><strong>Cierre</strong><small id="estado-paso-2"></small></span></button></li>
+        <li><button data-paso="3"><span class="paso-num">3</span><span class="paso-txt"><strong>Cuadre</strong><small id="estado-paso-3"></small></span></button></li>
+      </ol>
 
-      <div class="tarjeta">
-        <h2><span class="paso">2</span> Cierre de la tienda</h2>
-        <p class="ayuda">Lo rellenan las chicas al cerrar.</p>
-        <h3>Pescado que sobra</h3>
-        <p class="ayuda">Kilos que quedan de cada producto. Si se ha vendido todo, déjalo vacío.</p>
-        <div class="filas" id="cierre-fresco"></div>
-        <h3>Congelado que queda</h3>
-        <p class="ayuda">Unidades (o kilos, si va a granel) que quedan. Si no se ha vendido nada, déjalo vacío.</p>
-        <div class="filas" id="cierre-congelado"></div>
-
-        <h3>Caja</h3>
-        <div class="rejilla">
-          <label>Efectivo contado en caja (€)
-            <input type="text" inputmode="decimal" data-caja="contado" placeholder="0,00">
-          </label>
-          <label>Cobrado con tarjeta (€)
-            <input type="text" inputmode="decimal" data-caja="tarjeta" placeholder="0,00">
-          </label>
-          <label>Cobrado por Bizum (€)
-            <input type="text" inputmode="decimal" data-caja="bizum" placeholder="0,00">
-          </label>
-          <label>Gastos pagados con dinero de la caja (€)
-            <input type="text" inputmode="decimal" data-caja="gastos" placeholder="0,00">
-          </label>
-          <label>Fondo que se deja para mañana (€)
-            <input type="text" inputmode="decimal" data-caja="fondoManana" placeholder="0,00">
-          </label>
+      <!-- Paso 1: género -->
+      <div id="panel-1" class="panel">
+        <section class="tarjeta">
+          <h2>Género con el que empieza el día</h2>
+          <p class="ayuda">Lo rellena Ismael: kilos exactos de cada producto y precio de venta de hoy. El precio sale con el del último día.</p>
+          <div class="rejilla">
+            <label>Fondo de caja al empezar (€)
+              <input type="text" class="num" inputmode="decimal" data-caja="fondo" placeholder="0,00">
+            </label>
+            <label>Buscar producto
+              <input type="search" id="buscar" placeholder="Ej.: merluza" autocomplete="off">
+            </label>
+          </div>
+        </section>
+        <div id="genero"></div>
+        <div class="acciones">
+          <button class="btn primario" data-ir-vista="dia" data-ir-paso="2">Siguiente: cierre</button>
         </div>
-        <details id="desglose">
-          <summary>Contar el efectivo por billetes y monedas</summary>
-          <div id="desglose-filas" class="desglose"></div>
-          <p class="ayuda">El total se pasa solo a «Efectivo contado».</p>
-        </details>
-        <label>Notas
-          <textarea data-caja="notas" rows="2" placeholder="Opcional"></textarea>
-        </label>
       </div>
 
-      <div class="tarjeta">
-        <h2><span class="paso">3</span> Cuadre</h2>
+      <!-- Paso 2: cierre -->
+      <div id="panel-2" class="panel" hidden>
+        <div id="cierre-estado"></div>
+        <fieldset id="cierre-form" class="sin-marco">
+          <section class="tarjeta">
+            <h2>Pescado y marisco que sobra</h2>
+            <p class="ayuda">Pesa lo que queda de cada producto. Si se ha vendido todo, déjalo vacío.</p>
+            <div class="filas" id="cierre-fresco"></div>
+          </section>
+          <section class="tarjeta">
+            <h2>Congelado que queda</h2>
+            <p class="ayuda">Cuenta las bolsas (o pesa, si va a granel). Si no se ha vendido nada, déjalo vacío.</p>
+            <div class="filas" id="cierre-congelado"></div>
+          </section>
+          <section class="tarjeta">
+            <h2>Retiradas y mermas</h2>
+            <p class="ayuda">Género que sale sin venderse: lo que se lleva Ismael o lo que se tira o se regala. Así no cuenta como venta.</p>
+            <div class="rejilla">
+              <label>Producto <select id="salida-prod"></select></label>
+              <label>Qué ha pasado
+                <select id="salida-tipo">
+                  <option value="retirada">Retirada (se lo lleva Ismael)</option>
+                  <option value="merma">Merma (se tira o se regala)</option>
+                </select>
+              </label>
+              <label>Cantidad (kg o unidades)
+                <input type="text" class="num" inputmode="decimal" id="salida-cant" placeholder="0">
+              </label>
+              <label>Motivo
+                <input type="text" id="salida-motivo" placeholder="Opcional">
+              </label>
+            </div>
+            <button type="button" class="btn secundario" id="salida-anadir">Añadir</button>
+            <div id="lista-salidas" class="lista-salidas"></div>
+          </section>
+          <section class="tarjeta">
+            <h2>Caja</h2>
+            <div class="rejilla">
+              <label>Efectivo contado en caja (€)
+                <input type="text" class="num" inputmode="decimal" data-caja="contado" placeholder="0,00">
+              </label>
+              <label>Cobrado con tarjeta (€)
+                <input type="text" class="num" inputmode="decimal" data-caja="tarjeta" placeholder="0,00">
+              </label>
+              <label>Cobrado por Bizum (€)
+                <input type="text" class="num" inputmode="decimal" data-caja="bizum" placeholder="0,00">
+              </label>
+              <label>Gastos pagados con dinero de la caja (€)
+                <input type="text" class="num" inputmode="decimal" data-caja="gastos" placeholder="0,00">
+              </label>
+              <label>Fondo que se deja para mañana (€)
+                <input type="text" class="num" inputmode="decimal" data-caja="fondoManana" placeholder="0,00">
+              </label>
+            </div>
+            <details id="desglose">
+              <summary>Contar el efectivo por billetes y monedas</summary>
+              <div id="desglose-filas" class="desglose"></div>
+              <p class="ayuda">El total se pasa solo a «Efectivo contado».</p>
+            </details>
+            <label>Notas
+              <textarea data-caja="notas" rows="2" placeholder="Opcional"></textarea>
+            </label>
+          </section>
+          <div class="acciones">
+            <button type="button" class="btn primario" id="terminar-cierre">Terminar cierre</button>
+          </div>
+        </fieldset>
+      </div>
+
+      <!-- Paso 3: cuadre -->
+      <div id="panel-3" class="panel" hidden>
         <div id="cuadre"></div>
       </div>
     </section>
 
     <!-- CONGELADO -->
     <section id="vista-congelado" class="vista" hidden>
-      <div class="tarjeta">
-        <h2>Stock de congelado</h2>
-        <p class="ayuda">Lo que hay ahora en la tienda y lo que hace falta llevar para llegar al stock ideal.</p>
-        <div class="tabla-envoltorio">
-          <table class="tabla">
-            <thead><tr><th>Producto</th><th>Hay</th><th>Ideal</th><th>Reponer</th><th>Valor a coste</th></tr></thead>
-            <tbody id="tabla-congelado"></tbody>
-          </table>
+      <h1>Congelado</h1>
+      <section class="tarjeta">
+        <h2>Stock en la tienda</h2>
+        <p class="ayuda">Lo que hay ahora y lo que hace falta llevar para llegar al stock ideal.</p>
+        <div id="lista-congelado"></div>
+        <div class="botones">
+          <button type="button" class="btn primario" id="copiar-reposicion">Copiar lista de reposición</button>
+          <a class="btn secundario" id="whatsapp-reposicion" target="_blank" rel="noopener">Enviar por WhatsApp</a>
         </div>
-      </div>
+      </section>
     </section>
 
     <!-- RESUMEN -->
     <section id="vista-resumen" class="vista" hidden>
+      <h1>Resumen</h1>
       <div class="barra-fecha">
         <label class="en-linea">Mes <input type="month" id="mes"></label>
       </div>
       <div class="cifras" id="cifras-mes"></div>
-      <div class="tarjeta">
+      <section class="tarjeta">
+        <h2>Cobrado cada día</h2>
+        <div id="grafico-mes"></div>
+      </section>
+      <section class="tarjeta">
         <h2>Días</h2>
         <div class="tabla-envoltorio">
           <table class="tabla">
-            <thead><tr><th>Día</th><th>Según género</th><th>Caja real</th><th>Diferencia</th></tr></thead>
+            <thead><tr><th>Día</th><th>Según género</th><th>Cobrado</th><th>Diferencia</th></tr></thead>
             <tbody id="tabla-dias"></tbody>
           </table>
         </div>
-      </div>
-      <div class="tarjeta">
+      </section>
+      <section class="tarjeta">
         <h2>Vendido por producto</h2>
         <div class="tabla-envoltorio">
           <table class="tabla">
@@ -131,11 +217,27 @@
             <tbody id="tabla-productos"></tbody>
           </table>
         </div>
-      </div>
+      </section>
     </section>
 
     <!-- PRODUCTOS -->
     <section id="vista-productos" class="vista" hidden>
+      <h1>Productos y ajustes</h1>
+      <section class="tarjeta">
+        <h2>Ajustes</h2>
+        <label class="interruptor">
+          <input type="checkbox" id="ajuste-ciegas">
+          <span><strong>Cierre a ciegas</strong>
+            <small>Al cerrar no se ven los kilos del inicio ni lo que debería haber, y el cuadre solo aparece cuando se termina el cierre.</small></span>
+        </label>
+        <label>Teclado del mostrador
+          <select id="ajuste-teclado">
+            <option value="auto">Automático (en móvil y tablet)</option>
+            <option value="si">Siempre</option>
+            <option value="no">Nunca</option>
+          </select>
+        </label>
+      </section>
       <form class="tarjeta" id="form-producto">
         <h2>Añadir producto</h2>
         <div class="rejilla">
@@ -149,21 +251,45 @@
             </select>
           </label>
         </div>
-        <button type="submit" class="btn-principal">Añadir</button>
+        <button type="submit" class="btn primario">Añadir producto</button>
       </form>
       <div id="lista-productos"></div>
-      <div class="tarjeta">
+      <section class="tarjeta">
         <h2>Copia de seguridad</h2>
         <p class="ayuda">Los datos se guardan en este dispositivo. Descarga una copia de vez en cuando.</p>
         <div class="botones">
-          <button type="button" class="btn-secundario" id="exportar">Descargar copia</button>
-          <label class="btn-secundario">Restaurar copia
+          <button type="button" class="btn secundario" id="exportar">Descargar copia</button>
+          <label class="btn secundario">Restaurar copia
             <input type="file" id="importar" accept="application/json" hidden>
           </label>
         </div>
-      </div>
+      </section>
     </section>
   </main>
+
+  <!-- Teclado numérico para el mostrador -->
+  <div id="teclado" class="teclado" role="dialog" aria-label="Teclado numérico" hidden>
+    <div class="teclado-in">
+      <div class="teclado-cab">
+        <span id="teclado-campo"></span>
+        <output id="teclado-valor"></output>
+      </div>
+      <div class="teclado-teclas">
+        <button data-tecla="7">7</button><button data-tecla="8">8</button><button data-tecla="9">9</button>
+        <button data-tecla="4">4</button><button data-tecla="5">5</button><button data-tecla="6">6</button>
+        <button data-tecla="1">1</button><button data-tecla="2">2</button><button data-tecla="3">3</button>
+        <button data-tecla=",">,</button><button data-tecla="0">0</button>
+        <button data-tecla="borrar" aria-label="Borrar último número">⌫</button>
+      </div>
+      <div class="teclado-acciones">
+        <button class="btn secundario" data-tecla="limpiar">Vaciar</button>
+        <button class="btn secundario" data-tecla="siguiente">Siguiente</button>
+        <button class="btn primario" data-tecla="listo">Listo</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="aviso" class="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>
