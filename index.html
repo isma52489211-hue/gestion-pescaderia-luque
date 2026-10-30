@@ -16,116 +16,139 @@
       </div>
     </div>
     <nav class="pestanas" role="tablist">
-      <button class="pestana activa" data-vista="caja" role="tab">Caja del día</button>
+      <button class="pestana activa" data-vista="dia" role="tab">Día</button>
+      <button class="pestana" data-vista="congelado" role="tab">Congelado</button>
       <button class="pestana" data-vista="resumen" role="tab">Resumen</button>
+      <button class="pestana" data-vista="productos" role="tab">Productos</button>
     </nav>
   </header>
 
   <main>
-    <!-- CAJA DEL DÍA -->
-    <section id="vista-caja" class="vista">
+    <!-- DÍA -->
+    <section id="vista-dia" class="vista">
       <div class="barra-fecha">
         <button class="btn-icono" id="dia-anterior" aria-label="Día anterior">‹</button>
         <input type="date" id="fecha">
         <button class="btn-icono" id="dia-siguiente" aria-label="Día siguiente">›</button>
         <button class="btn-secundario" id="ir-hoy">Hoy</button>
       </div>
+      <p id="fecha-larga" class="estado"></p>
 
-      <div id="estado-dia" class="estado"></div>
-
-      <!-- Apertura -->
-      <form id="form-apertura" class="tarjeta" hidden>
-        <h2>Apertura de caja</h2>
-        <p class="ayuda">¿Con cuánto dinero en efectivo empiezas hoy?</p>
-        <label>Fondo inicial (€)
-          <input type="text" inputmode="decimal" id="fondo-inicial" placeholder="0,00" required>
+      <div class="tarjeta">
+        <h2><span class="paso">1</span> Inicio del día</h2>
+        <p class="ayuda">Lo rellena Ismael: kilos exactos con los que empieza el día cada producto y su precio de venta de hoy.</p>
+        <label class="corto">Fondo de caja al empezar (€)
+          <input type="text" inputmode="decimal" data-caja="fondo" placeholder="0,00">
         </label>
-        <button type="submit" class="btn-principal">Abrir caja</button>
-      </form>
+        <h3>Pescado fresco</h3>
+        <div class="filas" id="inicio-fresco"></div>
+        <h3>Pescado gordo</h3>
+        <div class="filas" id="inicio-gordo"></div>
+        <h3>Congelado</h3>
+        <div class="filas" id="inicio-congelado"></div>
+      </div>
 
-      <!-- Cierre -->
-      <form id="form-cierre" class="tarjeta" hidden>
-        <h2>Cierre de caja</h2>
-        <p class="ayuda">Fondo inicial: <strong id="cierre-fondo"></strong>
-          · <button type="button" class="enlace" id="editar-apertura">cambiar</button></p>
+      <div class="tarjeta">
+        <h2><span class="paso">2</span> Cierre de la tienda</h2>
+        <p class="ayuda">Lo rellenan las chicas al cerrar.</p>
+        <h3>Pescado que sobra</h3>
+        <p class="ayuda">Kilos que quedan de cada producto. Si se ha vendido todo, déjalo vacío.</p>
+        <div class="filas" id="cierre-fresco"></div>
+        <h3>Congelado que queda</h3>
+        <p class="ayuda">Unidades que quedan. Si no se ha vendido ninguna, déjalo vacío.</p>
+        <div class="filas" id="cierre-congelado"></div>
 
-        <fieldset>
-          <legend>Ventas del día (según ticket Z / datáfono)</legend>
-          <label>Efectivo (€)
-            <input type="text" inputmode="decimal" id="ventas-efectivo" placeholder="0,00">
-          </label>
-          <label>Tarjeta (€)
-            <input type="text" inputmode="decimal" id="ventas-tarjeta" placeholder="0,00">
-          </label>
-          <label>Bizum (€)
-            <input type="text" inputmode="decimal" id="ventas-bizum" placeholder="0,00">
-          </label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Salidas de efectivo</legend>
-          <label>Gastos pagados con dinero de la caja (€)
-            <input type="text" inputmode="decimal" id="gastos" placeholder="0,00">
-          </label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Recuento</legend>
+        <h3>Caja</h3>
+        <div class="rejilla">
           <label>Efectivo contado en caja (€)
-            <input type="text" inputmode="decimal" id="contado" placeholder="0,00">
+            <input type="text" inputmode="decimal" data-caja="contado" placeholder="0,00">
           </label>
-          <details id="desglose">
-            <summary>Contar por billetes y monedas</summary>
-            <div id="desglose-filas" class="desglose"></div>
-            <p class="ayuda">El total se pasa solo a «Efectivo contado».</p>
-          </details>
-          <label>Fondo que dejas para mañana (€)
-            <input type="text" inputmode="decimal" id="fondo-manana" placeholder="0,00">
+          <label>Cobrado con tarjeta (€)
+            <input type="text" inputmode="decimal" data-caja="tarjeta" placeholder="0,00">
           </label>
-        </fieldset>
-
+          <label>Cobrado por Bizum (€)
+            <input type="text" inputmode="decimal" data-caja="bizum" placeholder="0,00">
+          </label>
+          <label>Gastos pagados con dinero de la caja (€)
+            <input type="text" inputmode="decimal" data-caja="gastos" placeholder="0,00">
+          </label>
+          <label>Fondo que se deja para mañana (€)
+            <input type="text" inputmode="decimal" data-caja="fondoManana" placeholder="0,00">
+          </label>
+        </div>
+        <details id="desglose">
+          <summary>Contar el efectivo por billetes y monedas</summary>
+          <div id="desglose-filas" class="desglose"></div>
+          <p class="ayuda">El total se pasa solo a «Efectivo contado».</p>
+        </details>
         <label>Notas
-          <textarea id="notas" rows="2" placeholder="Opcional"></textarea>
+          <textarea data-caja="notas" rows="2" placeholder="Opcional"></textarea>
         </label>
+      </div>
 
-        <div class="cuadre" id="cuadre"></div>
+      <div class="tarjeta">
+        <h2><span class="paso">3</span> Cuadre</h2>
+        <div id="cuadre"></div>
+      </div>
+    </section>
 
-        <button type="submit" class="btn-principal">Cerrar caja</button>
-      </form>
-
-      <!-- Día cerrado -->
-      <div id="dia-cerrado" class="tarjeta" hidden>
-        <h2>Caja cerrada</h2>
-        <dl id="detalle-cierre" class="detalle"></dl>
-        <button type="button" class="btn-secundario" id="reabrir">Editar cierre</button>
+    <!-- CONGELADO -->
+    <section id="vista-congelado" class="vista" hidden>
+      <div class="tarjeta">
+        <h2>Stock de congelado</h2>
+        <p class="ayuda">Lo que hay ahora en la tienda y lo que hace falta llevar para llegar al stock ideal.</p>
+        <div class="tabla-envoltorio">
+          <table class="tabla">
+            <thead><tr><th>Producto</th><th>Hay</th><th>Ideal</th><th>Reponer</th><th>Valor a coste</th></tr></thead>
+            <tbody id="tabla-congelado"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
     <!-- RESUMEN -->
     <section id="vista-resumen" class="vista" hidden>
       <div class="barra-fecha">
-        <label class="en-linea">Mes
-          <input type="month" id="mes">
-        </label>
+        <label class="en-linea">Mes <input type="month" id="mes"></label>
       </div>
-
       <div class="cifras" id="cifras-mes"></div>
-
       <div class="tarjeta">
-        <h2>Días del mes</h2>
+        <h2>Días</h2>
         <div class="tabla-envoltorio">
           <table class="tabla">
-            <thead>
-              <tr>
-                <th>Día</th><th>Ventas</th><th>Efectivo</th><th>Tarjeta</th>
-                <th>Bizum</th><th>Gastos</th><th>Descuadre</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Día</th><th>Según género</th><th>Caja real</th><th>Diferencia</th></tr></thead>
             <tbody id="tabla-dias"></tbody>
           </table>
         </div>
       </div>
+      <div class="tarjeta">
+        <h2>Vendido por producto</h2>
+        <div class="tabla-envoltorio">
+          <table class="tabla">
+            <thead><tr><th>Producto</th><th>Cantidad</th><th>Importe</th></tr></thead>
+            <tbody id="tabla-productos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
+    <!-- PRODUCTOS -->
+    <section id="vista-productos" class="vista" hidden>
+      <form class="tarjeta" id="form-producto">
+        <h2>Añadir producto</h2>
+        <div class="rejilla">
+          <label>Nombre <input type="text" id="nuevo-nombre" required></label>
+          <label>Tipo
+            <select id="nuevo-tipo">
+              <option value="fresco">Pescado fresco</option>
+              <option value="gordo">Pescado gordo</option>
+              <option value="congelado">Congelado</option>
+            </select>
+          </label>
+        </div>
+        <button type="submit" class="btn-principal">Añadir</button>
+      </form>
+      <div id="lista-productos"></div>
       <div class="tarjeta">
         <h2>Copia de seguridad</h2>
         <p class="ayuda">Los datos se guardan en este dispositivo. Descarga una copia de vez en cuando.</p>

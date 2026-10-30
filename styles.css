@@ -160,3 +160,40 @@ summary { cursor: pointer; color: var(--mar); font-weight: 600; margin-bottom: 8
 .tabla tbody tr { cursor: pointer; }
 .tabla tbody tr:hover { background: var(--espuma); }
 .vacio { color: var(--suave); text-align: center !important; padding: 20px !important; }
+
+/* ---------- v2: listas de productos ---------- */
+h3 { font-size: 1rem; margin: 20px 0 6px; color: var(--texto); }
+h2 small { color: var(--suave); font-weight: 400; font-size: .9rem; }
+.paso {
+  display: inline-grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--mar); color: #fff; font-size: .9rem; margin-right: 6px;
+}
+select { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: #fff; margin-top: 4px; }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); column-gap: 12px; }
+label.corto { max-width: 260px; }
+
+.filas { display: flex; flex-direction: column; }
+.fila-prod {
+  display: grid;
+  grid-template-columns: 1fr 88px 88px;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--espuma);
+}
+.fila-prod.cab { font-size: .8rem; color: var(--suave); border-bottom: 1px solid var(--borde); padding-bottom: 6px; }
+.fila-prod.cab span:not(:first-child) { text-align: right; }
+.fila-prod input { padding: 8px; text-align: right; }
+.fila-prod.con-dato > span:first-child { font-weight: 600; color: var(--mar); }
+.dato { text-align: right; color: var(--suave); font-variant-numeric: tabular-nums; }
+.etiqueta { background: #fff4e0; color: var(--ambar); border-radius: 6px; padding: 1px 6px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+
+.productos.f-fresco .fila-prod { grid-template-columns: 1fr 90px 40px; }
+.productos.f-cong .fila-prod { grid-template-columns: 1.6fr 1.2fr repeat(4, 1fr) 40px; }
+.productos .fila-prod input:first-child { text-align: left; }
+.productos.f-cong { overflow-x: auto; }
+.productos.f-cong .fila-prod { min-width: 680px; }
+.btn-borrar { background: none; border: 0; color: var(--rojo); font-size: 1.1rem; padding: 6px; }
+
+.vista .tarjeta .cuadre { margin-top: 16px; }
