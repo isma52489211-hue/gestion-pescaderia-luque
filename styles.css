@@ -190,10 +190,11 @@ label.corto { max-width: 260px; }
 .etiqueta { background: #fff4e0; color: var(--ambar); border-radius: 6px; padding: 1px 6px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
 
 .productos.f-fresco .fila-prod { grid-template-columns: 1fr 90px 40px; }
-.productos.f-cong .fila-prod { grid-template-columns: 1.6fr 1.2fr repeat(4, 1fr) 40px; }
+.productos.f-cong .fila-prod { grid-template-columns: 1.6fr 1fr 1.2fr repeat(4, 1fr) 40px; }
 .productos .fila-prod input:first-child { text-align: left; }
 .productos.f-cong { overflow-x: auto; }
-.productos.f-cong .fila-prod { min-width: 680px; }
+.productos.f-cong .fila-prod { min-width: 820px; }
+.productos select { margin: 0; padding: 8px; }
 .btn-borrar { background: none; border: 0; color: var(--rojo); font-size: 1.1rem; padding: 6px; }
 
 .vista .tarjeta .cuadre { margin-top: 16px; }

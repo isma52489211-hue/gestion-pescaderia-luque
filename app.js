@@ -19,6 +19,21 @@ const MARISCO_INICIAL = [
   'Langostinos cocidos', 'Langostinos crudos', 'Gamba cruda', 'Gamba cocida',
 ];
 
+// unidad 'ud' = se vende por bolsas/unidades; 'kg' = a granel
+const CONGELADO_INICIAL = [
+  { nombre: 'Preparado de sopa', formato: '1 kg', unidad: 'ud' },
+  { nombre: 'Cóctel de marisco', formato: '1 kg', unidad: 'ud' },
+  { nombre: 'Gamba pelada', formato: '1 kg', unidad: 'ud' },
+  { nombre: 'Filete de merluza congelado', formato: 'a granel', unidad: 'kg' },
+  { nombre: 'Filete de rosada congelado', formato: 'a granel', unidad: 'kg' },
+  { nombre: 'Palitos del océano', formato: 'unidad', unidad: 'ud' },
+  { nombre: 'Tortillitas de camarones', formato: 'unidad', unidad: 'ud' },
+  { nombre: 'Mejillón media concha', formato: 'a granel', unidad: 'kg' },
+  { nombre: 'Calamar limpio', formato: '1 kg', unidad: 'ud' },
+  { nombre: 'Bacalao congelado', formato: 'a granel', unidad: 'kg' },
+  { nombre: 'Gamba rebozada', formato: '1 kg', unidad: 'ud' },
+];
+
 const TIPOS = { fresco: 'Pescado fresco', gordo: 'Pescado gordo', marisco: 'Marisco', congelado: 'Congelado' };
 
 const $ = (id) => document.getElementById(id);
@@ -97,6 +112,14 @@ if (!localStorage.getItem('gpl.marisco')) {
   localStorage.setItem('gpl.marisco', '1');
 }
 
+if (!localStorage.getItem('gpl.congelado')) {
+  for (const c of CONGELADO_INICIAL) {
+    const id = 'cong-' + slug(c.nombre);
+    if (!productos.some((p) => p.id === id)) productos.push({ id, tipo: 'congelado', ...c });
+  }
+  localStorage.setItem('gpl.congelado', '1');
+}
+
 function guardar() {
   localStorage.setItem(CLAVE_PRODUCTOS, JSON.stringify(productos));
   localStorage.setItem(CLAVE_DIAS, JSON.stringify(dias));
@@ -104,6 +127,13 @@ function guardar() {
 
 const porTipo = (tipo) => productos.filter((p) => p.tipo === tipo);
 const producto = (id) => productos.find((p) => p.id === id);
+
+// Congelado: cantidades en unidades o, si va a granel, en kg
+const aGranel = (p) => p.unidad === 'kg';
+const redondear = (n) => Math.round(n * 1000) / 1000;
+const fmtCant = (p, n) => (aGranel(p) ? fmtKg(redondear(n)) : fmtUd(n));
+const leerCant = (p, t) => (aGranel(p) ? aKg(t) : aEntero(t));
+const modoTeclado = (p) => (aGranel(p) ? 'decimal' : 'numeric');
 
 function diaEditable(fecha) {
   dias[fecha] ||= { fresco: {}, congelado: {}, caja: {} };
@@ -131,7 +161,7 @@ function stockAntes(id, fecha) {
     s += c.repuesto || 0;
     if (c.quedan != null) s = c.quedan;
   }
-  return s;
+  return redondear(s);
 }
 
 function stockActual(id) {
@@ -153,12 +183,12 @@ function calcularDia(fecha) {
 
   for (const p of porTipo('congelado')) {
     const c = d.congelado?.[p.id] || {};
-    const inicio = stockAntes(p.id, fecha) + (c.repuesto || 0);
+    const inicio = redondear(stockAntes(p.id, fecha) + (c.repuesto || 0));
     const queda = c.quedan ?? inicio;
-    const vendido = Math.max(0, inicio - queda);
+    const vendido = Math.max(0, redondear(inicio - queda));
     lineas.push({
-      p, inicio, queda, vendido, pvp: p.pvp || 0, importe: vendido * (p.pvp || 0),
-      margen: vendido * ((p.pvp || 0) - (p.coste || 0)), unidad: 'ud',
+      p, inicio, queda, vendido, pvp: p.pvp || 0, importe: Math.round(vendido * (p.pvp || 0)),
+      margen: Math.round(vendido * ((p.pvp || 0) - (p.coste || 0))), unidad: aGranel(p) ? 'kg' : 'ud',
     });
   }
 
@@ -209,8 +239,8 @@ function pintarInicio() {
   $('inicio-congelado').innerHTML = cong.length
     ? filaCab('Producto', 'Hay', 'Repongo') + cong.map((p) => `<div class="fila-prod">
         <span>${escapar(p.nombre)}${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
-        <span class="dato">${stockAntes(p.id, fecha)}</span>
-        <input type="text" inputmode="numeric" data-congelado="repuesto" data-id="${p.id}" value="${d.congelado?.[p.id]?.repuesto ?? ''}" placeholder="0">
+        <span class="dato">${fmtCant(p, stockAntes(p.id, fecha))}</span>
+        <input type="text" inputmode="${modoTeclado(p)}" data-congelado="repuesto" data-id="${p.id}" value="${numATexto(d.congelado?.[p.id]?.repuesto)}" placeholder="0">
       </div>`).join('')
     : '<p class="ayuda">Todavía no hay productos congelados. Añádelos en «Productos».</p>';
 
@@ -241,11 +271,11 @@ function pintarCierre() {
   $('cierre-congelado').innerHTML = cong.length
     ? filaCab('Producto', 'Había', 'Quedan') + cong.map((p) => {
       const c = d.congelado?.[p.id] || {};
-      const habia = stockAntes(p.id, fecha) + (c.repuesto || 0);
+      const habia = redondear(stockAntes(p.id, fecha) + (c.repuesto || 0));
       return `<div class="fila-prod">
         <span>${escapar(p.nombre)}</span>
-        <span class="dato">${habia}</span>
-        <input type="text" inputmode="numeric" data-congelado="quedan" data-id="${p.id}" value="${c.quedan ?? ''}" placeholder="${habia}">
+        <span class="dato">${fmtCant(p, habia)}</span>
+        <input type="text" inputmode="${modoTeclado(p)}" data-congelado="quedan" data-id="${p.id}" value="${numATexto(c.quedan)}" placeholder="${numATexto(habia)}">
       </div>`;
     }).join('')
     : '<p class="ayuda">No hay productos congelados.</p>';
@@ -315,9 +345,9 @@ function pintarCongelado() {
   $('tabla-congelado').innerHTML = lista.length
     ? lista.map((p) => {
       const hay = stockActual(p.id);
-      const reponer = Math.max(0, (p.stockIdeal || 0) - hay);
-      return `<tr><td>${escapar(p.nombre)}</td><td>${hay}</td><td>${p.stockIdeal || 0}</td>
-        <td class="${reponer ? 'falta' : 'ok'}">${reponer || '—'}</td><td>${fmt(hay * (p.coste || 0))}</td></tr>`;
+      const reponer = Math.max(0, redondear((p.stockIdeal || 0) - hay));
+      return `<tr><td>${escapar(p.nombre)}</td><td>${fmtCant(p, hay)}</td><td>${fmtCant(p, p.stockIdeal || 0)}</td>
+        <td class="${reponer ? 'falta' : 'ok'}">${reponer ? fmtCant(p, reponer) : '—'}</td><td>${fmt(Math.round(hay * (p.coste || 0)))}</td></tr>`;
     }).join('')
     : '<tr><td colspan="5" class="vacio">Todavía no hay productos congelados.</td></tr>';
 }
@@ -354,7 +384,7 @@ function pintarResumen() {
   const prods = Object.values(porProducto).sort((a, b) => b.importe - a.importe);
   $('tabla-productos').innerHTML = prods.length
     ? prods.map((x) => `<tr><td>${escapar(x.p.nombre)}</td>
-        <td>${x.p.tipo === 'congelado' ? fmtUd(x.cantidad) : fmtKg(Math.round(x.cantidad * 1000) / 1000)}</td>
+        <td>${x.p.tipo === 'congelado' ? fmtCant(x.p, x.cantidad) : fmtKg(redondear(x.cantidad))}</td>
         <td>${fmt(x.importe)}</td></tr>`).join('')
     : '<tr><td colspan="3" class="vacio">Sin ventas este mes.</td></tr>';
 
@@ -364,8 +394,8 @@ function pintarResumen() {
     ['Cobrado en caja', fmt(t.real)],
     ['Diferencia', `<span class="${claseDif(dif)}">${fmt(dif)}</span>`],
     ['Días con datos', filas.length],
-    ['Pescado vendido', fmtKg(Math.round(t.kg * 1000) / 1000)],
-    ['Congelado vendido', fmtUd(t.uds)],
+    ['Vendido a peso', fmtKg(redondear(t.kg))],
+    ['Congelado vendido por unidades', fmtUd(t.uds)],
     ['Ganancia congelado', fmt(t.margen)],
   ];
   $('cifras-mes').innerHTML = cifras.map(([k, v]) => `<div class="cifra"><small>${k}</small><strong>${v}</strong></div>`).join('');
@@ -377,15 +407,19 @@ function pintarProductos() {
   $('lista-productos').innerHTML = Object.entries(TIPOS).map(([tipo, titulo]) => {
     const lista = porTipo(tipo);
     const cab = tipo === 'congelado'
-      ? filaCab('Nombre', 'Formato', 'Coste €', 'Venta €', 'Stock inicial', 'Stock ideal', '')
+      ? filaCab('Nombre', 'Formato', 'Se vende', 'Coste €', 'Venta €', 'Stock inicial', 'Stock ideal', '')
       : filaCab('Nombre', 'Merma %', '');
     const filas = lista.map((p) => {
       const campos = tipo === 'congelado'
         ? `<input data-prod="formato" value="${escapar(p.formato || '')}" placeholder="bolsa 1 kg">
+           <select data-prod="unidad">
+             <option value="ud"${aGranel(p) ? '' : ' selected'}>Por unidad</option>
+             <option value="kg"${aGranel(p) ? ' selected' : ''}>A granel (kg)</option>
+           </select>
            <input inputmode="decimal" data-prod="coste" value="${centATexto(p.coste)}" placeholder="0,00">
            <input inputmode="decimal" data-prod="pvp" value="${centATexto(p.pvp)}" placeholder="0,00">
-           <input inputmode="numeric" data-prod="stockInicial" value="${p.stockInicial ?? ''}" placeholder="0">
-           <input inputmode="numeric" data-prod="stockIdeal" value="${p.stockIdeal ?? ''}" placeholder="0">`
+           <input inputmode="${modoTeclado(p)}" data-prod="stockInicial" value="${numATexto(p.stockInicial)}" placeholder="0">
+           <input inputmode="${modoTeclado(p)}" data-prod="stockIdeal" value="${numATexto(p.stockIdeal)}" placeholder="0">`
         : `<input inputmode="decimal" data-prod="merma" value="${numATexto(p.merma || '')}" placeholder="0">`;
       return `<div class="fila-prod ${tipo === 'congelado' ? 'f-cong' : 'f-fresco'}" data-id="${p.id}">
         <input data-prod="nombre" value="${escapar(p.nombre)}">${campos}
@@ -436,7 +470,7 @@ $('vista-dia').addEventListener('input', (e) => {
   } else if (i.dataset.congelado) {
     const d = diaEditable(fecha);
     const c = (d.congelado[id] ||= {});
-    c[i.dataset.congelado] = aEntero(i.value);
+    c[i.dataset.congelado] = leerCant(producto(id), i.value);
   } else if (i.dataset.caja) {
     const d = diaEditable(fecha);
     d.caja[i.dataset.caja] = i.dataset.caja === 'notas' ? i.value.trim() : aCentimos(i.value);
@@ -490,7 +524,12 @@ $('lista-productos').addEventListener('input', (e) => {
   if (campo === 'nombre' || campo === 'formato') p[campo] = i.value.trim();
   else if (campo === 'coste' || campo === 'pvp') p[campo] = aCentimos(i.value);
   else if (campo === 'merma') p.merma = aNumero(i.value) || 0;
-  else p[campo] = aEntero(i.value);
+  else if (campo === 'unidad') {
+    p.unidad = i.value;
+    guardar();
+    pintarProductos();
+    return;
+  } else p[campo] = leerCant(p, i.value);
   guardar();
 });
 

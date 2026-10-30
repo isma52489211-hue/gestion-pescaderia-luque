@@ -9,7 +9,7 @@ Aplicación web para controlar la caja de la Pescadería Luque **a partir del g�
 3. **Cuadre**: lo vendido por producto y la diferencia entre lo que debería haber y lo cobrado.
 
 - Fresco: `kilos inicio − kilos que sobran = kilos vendidos` (con % de merma por producto si la tiene, p. ej. salmón).
-- Congelado: `stock + repuesto − quedan = unidades vendidas`. La pestaña **Congelado** muestra el stock actual y lo que hay que reponer.
+- Congelado: `stock + repuesto − quedan = vendido`, por unidades (bolsas) o a granel (kg) según el producto. La pestaña **Congelado** muestra el stock actual y lo que hay que reponer.
 - **Resumen** mensual por día y por producto. **Productos**: catálogo editable y copia de seguridad.
 
 ## Cómo usarla
