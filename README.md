@@ -32,4 +32,6 @@ Aplicación web para controlar la caja de la tienda de Luque **a partir del gén
 
 ## Cómo usarla
 
-Abre `index.html` en el navegador. De momento los datos se guardan en el propio dispositivo.
+**En el móvil, la tablet o el ordenador:** https://isma52489211-hue.github.io/gestion-pescaderia-luque/
+
+También se puede abrir `index.html` directamente. De momento los datos se guardan en cada dispositivo (no se comparten entre aparatos).
