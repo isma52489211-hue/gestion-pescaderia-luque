@@ -362,3 +362,48 @@ details#desglose { margin-bottom: 16px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Rellenar rápido ---------- */
+
+.codigo { font-family: var(--letra-dato); font-weight: 700; font-size: 14px; color: var(--suave); }
+.con-dato .nombre-prod .codigo { color: var(--suave); }
+#rapido textarea { font-size: 16px; }
+#rapido .botones { margin-bottom: 8px; }
+#rapido-revision h3 { font-size: 18px; color: var(--azul); margin: 24px 0 4px; }
+.fila-prod.rev { grid-template-columns: 28px 1fr 96px 96px; }
+.fila-prod.rev input[type="checkbox"] { width: 24px; min-height: 24px; height: 24px; margin: 0; accent-color: var(--azul); }
+.fila-prod.cab.rev span:nth-child(2) { text-align: left; }
+.fila-prod.rev .nota { display: block; width: 100%; font-size: 14px; color: var(--suave); font-weight: 400; }
+.fila-prod.rev.dudosa { background: var(--sobra-fondo); }
+.fila-prod.rev.dudosa .nota { color: var(--sobra); font-weight: 900; }
+#rapido-revision .aviso { margin-top: 16px; }
+#rapido-revision .botones { margin-top: 16px; }
+@media (max-width: 420px) { .fila-prod.rev { grid-template-columns: 24px 1fr 80px 80px; gap: 6px; } }
+
+/* ---------- Plantilla imprimible ---------- */
+
+.plantilla { display: none; }
+
+@media print {
+  @page { size: A4; margin: 9mm 10mm; }
+  body { background: #fff; }
+  body > *:not(.plantilla) { display: none !important; }
+  .plantilla {
+    display: block; color: var(--tinta); font-family: var(--letra); font-size: 10.5pt;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .pl-cab { display: flex; align-items: center; justify-content: space-between; background: var(--azul); color: #fff; padding: 2mm 5mm; border-radius: 1.5mm; }
+  .pl-logo { width: 52mm; height: 17mm; }
+  .pl-logo img { width: 69mm; }
+  .pl-datos { display: flex; flex-direction: column; gap: 1.5mm; text-align: right; font-size: 10.5pt; }
+  .pl-datos strong { font-size: 12pt; }
+  .pl-cols { columns: 2; column-gap: 8mm; margin-top: 3mm; }
+  .pl-bloque { margin-bottom: 2mm; }
+  .pl-fila { display: grid; grid-template-columns: 7mm 1fr 17mm 17mm; gap: 1.5mm; align-items: center; height: 7mm; border-bottom: .2mm solid #d5d9e4; break-inside: avoid; }
+  .pl-titulo { border-bottom: .5mm solid var(--azul); font-weight: 900; color: var(--azul); break-after: avoid; }
+  .pl-titulo span:nth-child(n+3) { font-family: var(--letra-dato); font-size: 8.5pt; text-align: center; }
+  .pl-cod { font-family: var(--letra-dato); font-weight: 700; color: var(--suave); text-align: right; }
+  .pl-nom { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-caja { height: 6mm; border: .3mm solid var(--azul); border-radius: 1mm; }
+  .pl-pie { margin-top: 2mm; padding-top: 2mm; border-top: .5mm solid var(--coral); font-size: 8.5pt; color: var(--suave); }
+}

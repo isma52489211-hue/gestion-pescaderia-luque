@@ -142,6 +142,10 @@ if (!localStorage.getItem('gpl.congelado')) {
   localStorage.setItem('gpl.congelado', '1');
 }
 
+// Cada producto tiene un número fijo, el mismo que sale en la plantilla impresa
+const siguienteCodigo = () => Math.max(0, ...productos.map((p) => p.codigo || 0)) + 1;
+for (const p of productos) if (!p.codigo) p.codigo = siguienteCodigo();
+
 function guardar() {
   localStorage.setItem(CLAVE_PRODUCTOS, JSON.stringify(productos));
   localStorage.setItem(CLAVE_DIAS, JSON.stringify(dias));
@@ -402,7 +406,7 @@ function pintarGenero() {
   const fila = (p) => {
     const r = d.fresco?.[p.id] || {};
     return `<div class="fila-prod${r.kg ? ' con-dato' : ''}" data-nombre="${escapar(normalizar(p.nombre))}">
-      <span class="nombre-prod">${escapar(p.nombre)}${p.merma ? ` <small class="etiqueta">merma ${numATexto(p.merma)} %</small>` : ''}</span>
+      <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${p.merma ? ` <small class="etiqueta">merma ${numATexto(p.merma)} %</small>` : ''}</span>
       <input type="text" class="num" inputmode="decimal" data-fresco="kg" data-id="${p.id}" data-etiqueta="kilos" value="${numATexto(r.kg)}" placeholder="0" aria-label="Kilos de ${escapar(p.nombre)}">
       <input type="text" class="num" inputmode="decimal" data-fresco="pvp" data-id="${p.id}" data-etiqueta="€/kg" value="${centATexto(precio(f, p.id))}" placeholder="0,00" aria-label="Precio por kilo de ${escapar(p.nombre)}">
     </div>`;
@@ -431,7 +435,7 @@ function pintarGenero() {
       ${cabeceraCategoria('congelado', 'Lo que hay en la tienda y lo que repones hoy')}
       ${filaCab('Producto', 'Hay', 'Repongo')}
       ${cong.map((p) => `<div class="fila-prod${d.congelado?.[p.id]?.repuesto ? ' con-dato' : ''}" data-nombre="${escapar(normalizar(p.nombre))}">
-        <span class="nombre-prod">${escapar(p.nombre)}${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
+        <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
         <span class="dato">${fmtCant(p, stockAntes(p.id, f))}</span>
         <input type="text" class="num" inputmode="${modoTeclado(p)}" data-congelado="repuesto" data-id="${p.id}" data-etiqueta="repongo" value="${numATexto(d.congelado?.[p.id]?.repuesto)}" placeholder="0" aria-label="Repongo de ${escapar(p.nombre)}">
       </div>`).join('')}
@@ -600,6 +604,196 @@ function leerDesglose() {
 function escribirDesglose(d) {
   document.querySelectorAll('#desglose-filas input').forEach((i) => { i.value = d[i.dataset.den] || ''; });
   $('desglose').open = Object.keys(d).length > 0;
+}
+
+// ---------- Plantilla imprimible ----------
+
+function construirPlantilla() {
+  // Congelado: una sola casilla (repongo); el resto: kilos y €/kg
+  const fila = (p, cong) => `<div class="pl-fila">
+    <span class="pl-cod">${p.codigo}</span><span class="pl-nom">${escapar(p.nombre)}</span>
+    ${cong ? '<span></span>' : '<span class="pl-caja"></span>'}<span class="pl-caja"></span>
+  </div>`;
+  const bloque = (tipo) => {
+    const lista = porTipo(tipo).sort((a, b) => a.codigo - b.codigo);
+    if (!lista.length) return '';
+    const cong = tipo === 'congelado';
+    return `<section class="pl-bloque">
+      <div class="pl-fila pl-titulo"><span></span><span>${TIPOS[tipo].nombre}</span>${cong ? '<span></span><span>Repongo</span>' : '<span>Kilos</span><span>€/kg</span>'}</div>
+      ${lista.map((p) => fila(p, cong)).join('')}
+    </section>`;
+  };
+  $('plantilla').innerHTML = `
+    <header class="pl-cab">
+      <div class="logo-marco pl-logo"><img src="assets/logo-adolfo.png" alt="Pescaderías Adolfo"></div>
+      <div class="pl-datos">
+        <strong>Género del día · Tienda de Luque</strong>
+        <span>Fecha: ______ / ______ / __________</span>
+        <span>Fondo de caja: ______________ €</span>
+      </div>
+    </header>
+    <div class="pl-cols">${[...A_PESO, 'congelado'].map(bloque).join('')}</div>
+    <footer class="pl-pie">Escribe números claros y usa coma para los decimales (10,5). Deja en blanco lo que no se lleve.
+      Para pasarlo a la app: foto con buena luz y la hoja recta → copiar el texto con Google Lens o Texto en vivo → pegarlo en «Rellenar rápido».</footer>`;
+}
+
+// ---------- Rellenar rápido: leer una lista pegada, dictada o copiada de una foto ----------
+
+const VACIAS = new Set([
+  'de', 'del', 'a', 'al', 'el', 'la', 'los', 'las', 'kg', 'kgs', 'kilo', 'kilos', 'k', 'euro', 'euros', 'eur',
+  'e', 'precio', 'y', 'x', 'por', 'cada', 'unidad', 'unidades', 'ud', 'uds', 'bolsa', 'bolsas', 'n', 'no', 'num',
+]);
+const NUMEROS = { un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+
+function trocear(texto) {
+  const t = normalizar(texto)
+    .replace(/\b(un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/g, (m) => NUMEROS[m])
+    .replace(/(\d+)\s+(?:con|coma)\s+(\d+)/g, '$1,$2')
+    .replace(/(\d+)\s+y\s+medio\b/g, '$1,5')
+    .replace(/(\d+)\s+y\s+cuarto\b/g, '$1,25')
+    .replace(/\bmedio\s+kilo\b/g, '0,5');
+  return [...t.matchAll(/\d+(?:[.,]\d+)?|[a-z]+/g)]
+    .map(([m]) => (/\d/.test(m) ? { num: Number(m.replace(',', '.')) } : { palabra: m }))
+    .filter((x) => x.num != null || !VACIAS.has(x.palabra));
+}
+
+// Singular y plural cuentan como la misma palabra (boquerón / boquerones)
+const mismaPalabra = (a, b) => a === b || a + 's' === b || b + 's' === a || a + 'es' === b || b + 'es' === a;
+
+function leerLista(texto) {
+  const T = trocear(texto);
+  const candidatos = productos
+    .map((p) => ({ p, palabras: trocear(p.nombre).map((x) => x.palabra).filter(Boolean) }))
+    .filter((c) => c.palabras.length)
+    .sort((a, b) => b.palabras.length - a.palabras.length);
+
+  // Buscar los nombres de producto en el texto (primero los más largos: «sardinas chicas» antes que «sardinas»)
+  const marcas = [];
+  const sueltas = [];
+  let suelta = [];
+  const cerrarSuelta = () => { if (suelta.length) sueltas.push(suelta.join(' ')); suelta = []; };
+  for (let i = 0; i < T.length;) {
+    if (T[i].palabra) {
+      const c = candidatos.find((x) => x.palabras.every((w, k) => T[i + k]?.palabra && mismaPalabra(w, T[i + k].palabra)));
+      if (c) {
+        cerrarSuelta();
+        marcas.push({ p: c.p, ini: i, fin: i + c.palabras.length });
+        i += c.palabras.length;
+        continue;
+      }
+      suelta.push(T[i].palabra);
+    } else {
+      cerrarSuelta();
+    }
+    i++;
+  }
+  cerrarSuelta();
+
+  // Si el texto viene de la plantilla, cada nombre va precedido de su número de producto: se descarta
+  const conCodigo = marcas.filter((m) => T[m.ini - 1]?.num === m.p.codigo).length;
+  const usaCodigos = conCodigo >= Math.max(2, marcas.length / 2);
+
+  const filas = new Map();
+  marcas.forEach((m, k) => {
+    const sig = marcas[k + 1];
+    let hasta = sig ? sig.ini : T.length;
+    if (usaCodigos && sig && T[sig.ini - 1]?.num === sig.p.codigo) hasta = sig.ini - 1;
+    const nums = T.slice(m.fin, hasta).filter((x) => x.num != null).map((x) => x.num);
+    const cong = m.p.tipo === 'congelado';
+    filas.set(m.p.id, {
+      p: m.p,
+      kg: cong ? null : nums[0] ?? null,
+      pvp: cong ? null : nums[1] != null ? Math.round(nums[1] * 100) : null,
+      repuesto: cong ? nums[0] ?? null : null,
+      sobran: nums.length > (cong ? 1 : 2),
+      repetido: filas.has(m.p.id),
+    });
+  });
+  return { filas: [...filas.values()].filter((x) => x.kg != null || x.repuesto != null || x.pvp != null), sueltas, sinDatos: [...filas.values()].filter((x) => x.kg == null && x.repuesto == null && x.pvp == null) };
+}
+
+function pintarRevision(res) {
+  const f = $('fecha').value;
+  const d = dias[f] || { fresco: {}, congelado: {} };
+  if (!res.filas.length) {
+    $('rapido-revision').innerHTML = `<div class="aviso">${ICONO.alerta}<div><strong>No he reconocido ningún producto</strong>
+      <p>Escribe el nombre como está en la lista de productos, seguido de los kilos y el precio.</p></div></div>`;
+    return;
+  }
+
+  const filas = res.filas.map((x) => {
+    const notas = [];
+    const p = x.p;
+    if (p.tipo === 'congelado') {
+      const antes = d.congelado?.[p.id]?.repuesto;
+      if (antes != null && antes !== x.repuesto) notas.push(`antes ${numATexto(antes)}`);
+      return `<div class="fila-prod rev" data-rev="${p.id}">
+        <input type="checkbox" checked aria-label="Pasar ${escapar(p.nombre)}">
+        <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small><small class="nota">Repongo${notas.length ? ' · ' + notas.join(' · ') : ''}</small></span>
+        <input type="text" class="num" inputmode="${modoTeclado(p)}" data-campo="repuesto" data-etiqueta="repongo" value="${numATexto(x.repuesto)}">
+        <span></span>
+      </div>`;
+    }
+    const anterior = precio(f, p.id);
+    const pvp = x.pvp ?? anterior;
+    if (x.pvp == null && anterior != null) notas.push('precio del último día');
+    if (x.pvp == null && anterior == null) notas.push('falta el precio');
+    if (x.kg == null) notas.push('faltan los kilos');
+    const antes = d.fresco?.[p.id]?.kg;
+    if (antes && antes !== x.kg) notas.push(`antes ${fmtKg(antes)}`);
+    const raro = (x.kg != null && x.kg > 60) || (pvp != null && (pvp < 100 || pvp > 6000))
+      || (x.pvp != null && anterior && Math.abs(x.pvp - anterior) / anterior > 0.4);
+    if (raro) notas.push('revisa este número');
+    if (x.repetido) notas.push('aparece dos veces');
+    if (x.sobran) notas.push('había números de más');
+    return `<div class="fila-prod rev${raro || x.kg == null ? ' dudosa' : ''}" data-rev="${p.id}">
+      <input type="checkbox" ${x.kg != null ? 'checked' : ''} aria-label="Pasar ${escapar(p.nombre)}">
+      <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${notas.length ? `<small class="nota">${notas.join(' · ')}</small>` : ''}</span>
+      <input type="text" class="num" inputmode="decimal" data-campo="kg" data-etiqueta="kilos" value="${numATexto(x.kg)}" placeholder="kg">
+      <input type="text" class="num" inputmode="decimal" data-campo="pvp" data-etiqueta="€/kg" value="${centATexto(pvp)}" placeholder="€/kg">
+    </div>`;
+  }).join('');
+
+  const desconocidas = res.sueltas.length
+    ? `<div class="aviso">${ICONO.alerta}<div><strong>No reconozco</strong><p>${res.sueltas.map((s) => `«${escapar(s)}»`).join(', ')}</p></div></div>`
+    : '';
+
+  $('rapido-revision').innerHTML = `<h3>Revisa antes de pasar al día</h3>
+    <p class="ayuda">Comprueba los números marcados. Quita la marca de lo que no quieras pasar.</p>
+    <div class="filas">${filaCab('', 'Producto', 'Kilos', '€/kg').replace('fila-prod cab', 'fila-prod cab rev')}${filas}</div>
+    ${desconocidas}
+    <div class="botones">
+      <button type="button" class="btn primario" id="rapido-pasar">Pasar al día (${res.filas.filter((x) => x.kg != null || x.repuesto != null).length})</button>
+      <button type="button" class="btn secundario" id="rapido-cancelar">Cancelar</button>
+    </div>`;
+}
+
+function pasarRevision() {
+  const f = $('fecha').value;
+  const d = diaEditable(f);
+  let n = 0;
+  document.querySelectorAll('#rapido-revision [data-rev]').forEach((fila) => {
+    if (!fila.querySelector('input[type="checkbox"]').checked) return;
+    const p = producto(fila.dataset.rev);
+    const valor = (campo) => fila.querySelector(`[data-campo="${campo}"]`)?.value;
+    if (p.tipo === 'congelado') {
+      const rep = leerCant(p, valor('repuesto'));
+      if (rep == null) return;
+      (d.congelado[p.id] ||= {}).repuesto = rep;
+    } else {
+      const kg = aKg(valor('kg'));
+      if (kg == null) return;
+      const r = (d.fresco[p.id] ||= {});
+      r.kg = kg;
+      r.pvp = aCentimos(valor('pvp')) ?? precio(f, p.id);
+    }
+    n++;
+  });
+  guardar();
+  $('rapido-revision').innerHTML = '';
+  $('rapido-texto').value = '';
+  pintarDia();
+  avisar(`${n} productos pasados al día.`);
 }
 
 // ---------- Vista: congelado ----------
@@ -829,6 +1023,25 @@ $('vista-dia').addEventListener('click', (e) => {
   }
 });
 
+$('rapido-leer').addEventListener('click', () => {
+  const texto = $('rapido-texto').value.trim();
+  if (!texto) {
+    avisar('Pega o dicta primero la lista.');
+    return;
+  }
+  pintarRevision(leerLista(texto));
+});
+
+$('imprimir-plantilla').addEventListener('click', () => {
+  construirPlantilla();
+  window.print();
+});
+
+$('rapido').addEventListener('click', (e) => {
+  if (e.target.id === 'rapido-pasar') pasarRevision();
+  if (e.target.id === 'rapido-cancelar') $('rapido-revision').innerHTML = '';
+});
+
 $('salida-anadir').addEventListener('click', () => {
   const f = $('fecha').value;
   const p = producto($('salida-prod').value);
@@ -902,7 +1115,8 @@ $('form-producto').addEventListener('submit', (e) => {
   const tipo = $('nuevo-tipo').value;
   let id = (tipo === 'congelado' ? 'cong-' : '') + slug(nombre);
   while (producto(id)) id += '-2';
-  productos.push(tipo === 'congelado' ? { id, nombre, tipo, unidad: 'ud' } : { id, nombre, tipo, merma: 0 });
+  const codigo = siguienteCodigo();
+  productos.push(tipo === 'congelado' ? { id, codigo, nombre, tipo, unidad: 'ud' } : { id, codigo, nombre, tipo, merma: 0 });
   guardar();
   $('nuevo-nombre').value = '';
   pintarProductos();

@@ -94,6 +94,18 @@
             </label>
           </div>
         </section>
+        <section class="tarjeta" id="rapido">
+          <h2>Rellenar rápido</h2>
+          <p class="ayuda">Pega o dicta la lista y la app reparte los kilos y precios. Por ejemplo: «merluza 10 a 12,90, dorada 6 a 9,95». También vale el texto copiado de una foto de la plantilla con Google Lens o con el Texto en vivo del iPhone.</p>
+          <label>Lista del día
+            <textarea id="rapido-texto" rows="4" placeholder="merluza 10 a 12,90&#10;dorada 6 a 9,95&#10;gamba pelada 3"></textarea>
+          </label>
+          <div class="botones">
+            <button type="button" class="btn primario" id="rapido-leer">Leer lista</button>
+            <button type="button" class="btn secundario" id="imprimir-plantilla">Imprimir plantilla</button>
+          </div>
+          <div id="rapido-revision"></div>
+        </section>
         <div id="genero"></div>
         <div class="acciones">
           <button class="btn primario" data-ir-vista="dia" data-ir-paso="2">Siguiente: cierre</button>
@@ -290,6 +302,9 @@
   </div>
 
   <div id="aviso" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Plantilla del género para imprimir (solo se ve al imprimir) -->
+  <div id="plantilla" class="plantilla"></div>
 
   <script src="app.js"></script>
 </body>

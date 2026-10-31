@@ -19,6 +19,11 @@ Aplicación web para controlar la caja de la tienda de Luque **a partir del gén
 - **Retiradas y mermas**: género que sale sin venderse (lo que se lleva Ismael, o lo que se tira o se regala); no cuenta como venta.
 - **Teclado del mostrador**: teclado numérico grande en pantalla para móvil y tablet.
 
+## Rellenar rápido (coste cero)
+
+- **Plantilla imprimible** (botón «Imprimir plantilla» en el paso 1): una hoja A4 con todos los productos numerados y casillas para kilos y €/kg.
+- **Rellenar rápido**: se pega o se dicta la lista («merluza 10 a 12,90, dorada 6 a 9,95») o el texto copiado de una foto de la plantilla con Google Lens o el Texto en vivo del iPhone. La app reconoce los productos (singular o plural), los kilos y el precio, y enseña una revisión antes de pasarlo al día.
+
 ## Cálculos
 
 - Fresco, gordo y marisco: `kilos inicio − sobra − retiradas/mermas = vendido`, menos el % de merma del producto si la tiene (salmón, atún).
