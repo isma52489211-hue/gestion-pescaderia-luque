@@ -1266,3 +1266,8 @@ $('mes').value = hoyISO().slice(0, 7);
 pasoActual = pasoSugerido(hoyISO());
 guardar();
 mostrarVista('inicio');
+
+// Instalable en el móvil y usable sin conexión
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
