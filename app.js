@@ -406,7 +406,7 @@ function pintarGenero() {
   const fila = (p) => {
     const r = d.fresco?.[p.id] || {};
     return `<div class="fila-prod${r.kg ? ' con-dato' : ''}" data-nombre="${escapar(normalizar(p.nombre))}">
-      <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${p.merma ? ` <small class="etiqueta">merma ${numATexto(p.merma)} %</small>` : ''}</span>
+      <span class="nombre-prod">${escapar(p.nombre)}${p.merma ? ` <small class="etiqueta">merma ${numATexto(p.merma)} %</small>` : ''}</span>
       <input type="text" class="num" inputmode="decimal" data-fresco="kg" data-id="${p.id}" data-etiqueta="kilos" value="${numATexto(r.kg)}" placeholder="0" aria-label="Kilos de ${escapar(p.nombre)}">
       <input type="text" class="num" inputmode="decimal" data-fresco="pvp" data-id="${p.id}" data-etiqueta="€/kg" value="${centATexto(precio(f, p.id))}" placeholder="0,00" aria-label="Precio por kilo de ${escapar(p.nombre)}">
     </div>`;
@@ -435,7 +435,7 @@ function pintarGenero() {
       ${cabeceraCategoria('congelado', 'Lo que hay en la tienda y lo que repones hoy')}
       ${filaCab('Producto', 'Hay', 'Repongo')}
       ${cong.map((p) => `<div class="fila-prod${d.congelado?.[p.id]?.repuesto ? ' con-dato' : ''}" data-nombre="${escapar(normalizar(p.nombre))}">
-        <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
+        <span class="nombre-prod">${escapar(p.nombre)}${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
         <span class="dato">${fmtCant(p, stockAntes(p.id, f))}</span>
         <input type="text" class="num" inputmode="${modoTeclado(p)}" data-congelado="repuesto" data-id="${p.id}" data-etiqueta="repongo" value="${numATexto(d.congelado?.[p.id]?.repuesto)}" placeholder="0" aria-label="Repongo de ${escapar(p.nombre)}">
       </div>`).join('')}
@@ -701,16 +701,20 @@ function leerLista(texto) {
   }
   cerrarSuelta();
 
-  // Si el texto viene de la plantilla, cada nombre va precedido de su número de producto: se descarta
-  const conCodigo = marcas.filter((m) => T[m.ini - 1]?.num === m.p.codigo).length;
-  const usaCodigos = conCodigo >= Math.max(2, marcas.length / 2);
+  // Si el texto viene de la plantilla, cada nombre lleva su número de producto delante o detrás
+  // (según cómo lo copie Google Lens): ese número no son kilos y se descarta
+  const mayoria = (n) => n >= Math.max(3, marcas.length * 0.7);
+  const codigoDelante = mayoria(marcas.filter((m) => T[m.ini - 1]?.num === m.p.codigo).length);
+  const codigoDetras = mayoria(marcas.filter((m) => T[m.fin]?.num === m.p.codigo).length);
 
   const filas = new Map();
   marcas.forEach((m, k) => {
     const sig = marcas[k + 1];
+    let desde = m.fin;
     let hasta = sig ? sig.ini : T.length;
-    if (usaCodigos && sig && T[sig.ini - 1]?.num === sig.p.codigo) hasta = sig.ini - 1;
-    const nums = T.slice(m.fin, hasta).filter((x) => x.num != null).map((x) => x.num);
+    if (codigoDetras && T[desde]?.num === m.p.codigo) desde++;
+    if (codigoDelante && sig && T[sig.ini - 1]?.num === sig.p.codigo) hasta = sig.ini - 1;
+    const nums = T.slice(desde, Math.max(desde, hasta)).filter((x) => x.num != null).map((x) => x.num);
     const cong = m.p.tipo === 'congelado';
     filas.set(m.p.id, {
       p: m.p,
@@ -755,7 +759,7 @@ function pintarRevision(res) {
       if (antes != null && antes !== x.repuesto) notas.push(`antes ${numATexto(antes)}`);
       return `<div class="fila-prod rev${algunaDuda(x) ? ' dudosa' : ''}" data-rev="${p.id}">
         <input type="checkbox" checked aria-label="Pasar ${escapar(p.nombre)}">
-        <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small><small class="nota">Repongo${notas.length ? ' · ' + notas.join(' · ') : ''}</small></span>
+        <span class="nombre-prod">${escapar(p.nombre)}<small class="nota">Repongo${notas.length ? ' · ' + notas.join(' · ') : ''}</small></span>
         ${celda(x, 'repuesto', numATexto(x.repuesto), modoTeclado(p), 'repongo')}
         <span></span>
       </div>`;
@@ -774,7 +778,7 @@ function pintarRevision(res) {
     if (x.sobran) notas.push('había números de más');
     return `<div class="fila-prod rev${raro || x.kg == null || algunaDuda(x) ? ' dudosa' : ''}" data-rev="${p.id}">
       <input type="checkbox" ${x.kg != null ? 'checked' : ''} aria-label="Pasar ${escapar(p.nombre)}">
-      <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${notas.length ? `<small class="nota">${notas.join(' · ')}</small>` : ''}</span>
+      <span class="nombre-prod">${escapar(p.nombre)}${notas.length ? `<small class="nota">${notas.join(' · ')}</small>` : ''}</span>
       ${celda(x, 'kg', numATexto(x.kg), 'decimal', 'kilos')}
       ${celda(x, 'pvp', centATexto(pvp), 'decimal', '€/kg')}
     </div>`;
@@ -1070,6 +1074,21 @@ $('rapido-leer').addEventListener('click', () => {
     return;
   }
   pintarRevision(leerLista(texto));
+});
+
+$('borrar-dia').addEventListener('click', () => {
+  const f = $('fecha').value;
+  if (!dias[f]) {
+    avisar('Este día no tiene nada apuntado.');
+    return;
+  }
+  if (!confirm(`¿Borrar todo lo apuntado el ${fechaCorta(f)}? Género, cierre, retiradas y caja. No se puede deshacer.`)) return;
+  delete dias[f];
+  guardar();
+  pasoActual = 1;
+  $('rapido-revision').innerHTML = '';
+  pintarDia();
+  avisar('Día borrado.');
 });
 
 $('foto-plantilla').addEventListener('change', (e) => {

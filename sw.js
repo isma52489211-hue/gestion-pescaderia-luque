@@ -1,7 +1,7 @@
 // Caja Luque — permite instalar la app y usarla sin conexión.
 // Primero intenta la red (para recibir siempre la última versión) y, si no hay, usa lo guardado.
 
-const CACHE = 'caja-luque-v2';
+const CACHE = 'caja-luque-v3';
 const ARCHIVOS = [
   './',
   'index.html',
