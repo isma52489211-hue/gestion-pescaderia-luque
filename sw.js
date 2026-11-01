@@ -1,7 +1,7 @@
 // Caja Luque — permite instalar la app y usarla sin conexión.
 // Primero intenta la red (para recibir siempre la última versión) y, si no hay, usa lo guardado.
 
-const CACHE = 'caja-luque-v3';
+const CACHE = 'caja-luque-v4';
 const ARCHIVOS = [
   './',
   'index.html',
@@ -38,8 +38,9 @@ self.addEventListener('fetch', (e) => {
   const fuentes = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!propia && !fuentes) return;
 
+  // Los archivos propios se piden siempre comprobando si hay versión nueva (sin usar la copia de 10 minutos)
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, propia ? { cache: 'no-cache' } : undefined)
       .then((r) => {
         if (r.ok || r.type === 'opaque') {
           const copia = r.clone();
