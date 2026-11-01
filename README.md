@@ -21,8 +21,13 @@ Aplicación web para controlar la caja de la tienda de Luque **a partir del gén
 
 ## Rellenar rápido (coste cero)
 
-- **Plantilla imprimible** (botón «Imprimir plantilla» en el paso 1): una hoja A4 con todos los productos numerados y casillas para kilos y €/kg.
-- **Rellenar rápido**: se pega o se dicta la lista («merluza 10 a 12,90, dorada 6 a 9,95») o el texto copiado de una foto de la plantilla con Google Lens o el Texto en vivo del iPhone. La app reconoce los productos (singular o plural), los kilos y el precio, y enseña una revisión antes de pasarlo al día.
+- **Plantilla imprimible** (botón «Imprimir plantilla» en el paso 1): hoja A4 con todos los productos numerados, una casilla por cifra (la coma ya impresa) y cuatro marcas negras en las esquinas.
+- **Foto de la plantilla** («Subir foto de la plantilla»): la app lee los números escritos a mano **sin internet y sin coste**. Con las cuatro marcas endereza la foto, recorta cada casilla y una red neuronal propia reconoce la cifra. La revisión enseña, encima de cada número, el recorte de lo escrito y marca en amarillo las cifras dudosas.
+- **Lista pegada o dictada**: también se puede pegar o dictar («merluza 10 a 12,90, dorada 6 a 9,95»). La app reconoce los productos (singular o plural), los kilos y el precio.
+
+### El lector de cifras
+
+`assets/lector-cifras.json` es una red convolucional pequeña (conv 5×5 ×16 → conv 5×5 ×32 → 128 → 10, pesos int8, 109 KB) entrenada con las cifras manuscritas públicas de MNIST más variantes al estilo español (7 con rayita, 1 con palito). Acierta el 99,4 % de cifras de prueba que no vio al entrenar. `lector.js` contiene el diseño de la plantilla (compartido por la hoja impresa y la lectura), la detección de las marcas, la corrección de perspectiva y el cálculo de la red.
 
 ## Cálculos
 

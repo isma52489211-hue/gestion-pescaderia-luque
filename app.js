@@ -608,33 +608,45 @@ function escribirDesglose(d) {
 
 // ---------- Plantilla imprimible ----------
 
+// El diseño (posición de cada casilla) lo comparten la hoja impresa y el lector de fotos (lector.js)
+const disenoActual = () => disenoPlantilla(productos, TIPOS);
+
 function construirPlantilla() {
-  // Congelado: una sola casilla (repongo); el resto: kilos y €/kg
-  const fila = (p, cong) => `<div class="pl-fila">
-    <span class="pl-cod">${p.codigo}</span><span class="pl-nom">${escapar(p.nombre)}</span>
-    ${cong ? '<span></span>' : '<span class="pl-caja"></span>'}<span class="pl-caja"></span>
-  </div>`;
-  const bloque = (tipo) => {
-    const lista = porTipo(tipo).sort((a, b) => a.codigo - b.codigo);
-    if (!lista.length) return '';
-    const cong = tipo === 'congelado';
-    return `<section class="pl-bloque">
-      <div class="pl-fila pl-titulo"><span></span><span>${TIPOS[tipo].nombre}</span>${cong ? '<span></span><span>Repongo</span>' : '<span>Kilos</span><span>€/kg</span>'}</div>
-      ${lista.map((p) => fila(p, cong)).join('')}
-    </section>`;
-  };
-  $('plantilla').innerHTML = `
-    <header class="pl-cab">
-      <div class="logo-marco pl-logo"><img src="assets/logo-adolfo.png" alt="Pescaderías Adolfo"></div>
-      <div class="pl-datos">
-        <strong>Género del día · Tienda de Luque</strong>
-        <span>Fecha: ______ / ______ / __________</span>
-        <span>Fondo de caja: ______________ €</span>
-      </div>
-    </header>
-    <div class="pl-cols">${[...A_PESO, 'congelado'].map(bloque).join('')}</div>
-    <footer class="pl-pie">Escribe números claros y usa coma para los decimales (10,5). Deja en blanco lo que no se lleve.
-      Para pasarlo a la app: foto con buena luz y la hoja recta → copiar el texto con Google Lens o Texto en vivo → pegarlo en «Rellenar rápido».</footer>`;
+  const d = disenoActual();
+  if (d.desbordado) avisar('Hay demasiados productos para una hoja: algunos no caben en la plantilla.');
+  $('plantilla').innerHTML = svgPlantilla(d);
+}
+
+// Foto de la plantilla → números leídos → misma revisión que la lista pegada
+async function leerFoto(archivo) {
+  const estado = $('foto-estado');
+  estado.textContent = 'Leyendo la foto… (unos segundos)';
+  $('rapido-revision').innerHTML = '';
+  try {
+    const leidos = await leerFotoPlantilla(archivo, disenoActual());
+    const porProducto = new Map();
+    let fondo = null;
+    for (const r of leidos) {
+      const dudosa = r.confianza < 0.95;
+      if (r.id === '__fondo') {
+        fondo = { valor: Math.round(r.valor * 100), recorte: r.recorte, duda: dudosa };
+        continue;
+      }
+      const p = producto(r.id);
+      if (!p) continue;
+      const x = porProducto.get(p.id) || { p, kg: null, pvp: null, repuesto: null, recortes: {}, dudas: {} };
+      x[r.campo] = r.campo === 'pvp' ? Math.round(r.valor * 100) : r.valor;
+      x.recortes[r.campo] = r.recorte;
+      x.dudas[r.campo] = dudosa;
+      porProducto.set(p.id, x);
+    }
+    estado.textContent = '';
+    pintarRevision({ filas: [...porProducto.values()], sueltas: [], fondo, deFoto: true });
+  } catch (e) {
+    estado.textContent = '';
+    $('rapido-revision').innerHTML = `<div class="aviso">${ICONO.alerta}<div><strong>No he podido leer la foto</strong>
+      <p>${escapar(e.message || 'Inténtalo de nuevo con otra foto.')}</p></div></div>`;
+  }
 }
 
 // ---------- Rellenar rápido: leer una lista pegada, dictada o copiada de una foto ----------
@@ -715,22 +727,36 @@ function leerLista(texto) {
 function pintarRevision(res) {
   const f = $('fecha').value;
   const d = dias[f] || { fresco: {}, congelado: {} };
-  if (!res.filas.length) {
-    $('rapido-revision').innerHTML = `<div class="aviso">${ICONO.alerta}<div><strong>No he reconocido ningún producto</strong>
-      <p>Escribe el nombre como está en la lista de productos, seguido de los kilos y el precio.</p></div></div>`;
+  if (!res.filas.length && !res.fondo) {
+    $('rapido-revision').innerHTML = res.deFoto
+      ? `<div class="aviso">${ICONO.alerta}<div><strong>No he encontrado números en la plantilla</strong>
+        <p>Comprueba que la foto es de la plantilla rellena, con buena luz y sin sombras fuertes.</p></div></div>`
+      : `<div class="aviso">${ICONO.alerta}<div><strong>No he reconocido ningún producto</strong>
+        <p>Escribe el nombre como está en la lista de productos, seguido de los kilos y el precio.</p></div></div>`;
     return;
   }
+
+  // Casilla de revisión: el número leído y, si viene de una foto, el recorte de lo escrito
+  const celda = (x, campo, texto, modo, etiqueta) => {
+    const recorte = x.recortes?.[campo];
+    return `<span class="celda-rev${x.dudas?.[campo] ? ' duda' : ''}">
+      ${recorte ? `<img src="${recorte}" alt="Lo escrito en ${etiqueta}">` : ''}
+      <input type="text" class="num" inputmode="${modo}" data-campo="${campo}" data-etiqueta="${etiqueta}" value="${texto}" placeholder="${etiqueta}">
+    </span>`;
+  };
+  const algunaDuda = (x) => Object.values(x.dudas || {}).some(Boolean);
 
   const filas = res.filas.map((x) => {
     const notas = [];
     const p = x.p;
+    if (algunaDuda(x)) notas.push('letra dudosa: compara con lo escrito');
     if (p.tipo === 'congelado') {
       const antes = d.congelado?.[p.id]?.repuesto;
       if (antes != null && antes !== x.repuesto) notas.push(`antes ${numATexto(antes)}`);
-      return `<div class="fila-prod rev" data-rev="${p.id}">
+      return `<div class="fila-prod rev${algunaDuda(x) ? ' dudosa' : ''}" data-rev="${p.id}">
         <input type="checkbox" checked aria-label="Pasar ${escapar(p.nombre)}">
         <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small><small class="nota">Repongo${notas.length ? ' · ' + notas.join(' · ') : ''}</small></span>
-        <input type="text" class="num" inputmode="${modoTeclado(p)}" data-campo="repuesto" data-etiqueta="repongo" value="${numATexto(x.repuesto)}">
+        ${celda(x, 'repuesto', numATexto(x.repuesto), modoTeclado(p), 'repongo')}
         <span></span>
       </div>`;
     }
@@ -746,24 +772,33 @@ function pintarRevision(res) {
     if (raro) notas.push('revisa este número');
     if (x.repetido) notas.push('aparece dos veces');
     if (x.sobran) notas.push('había números de más');
-    return `<div class="fila-prod rev${raro || x.kg == null ? ' dudosa' : ''}" data-rev="${p.id}">
+    return `<div class="fila-prod rev${raro || x.kg == null || algunaDuda(x) ? ' dudosa' : ''}" data-rev="${p.id}">
       <input type="checkbox" ${x.kg != null ? 'checked' : ''} aria-label="Pasar ${escapar(p.nombre)}">
       <span class="nombre-prod">${escapar(p.nombre)} <small class="codigo">${p.codigo}</small>${notas.length ? `<small class="nota">${notas.join(' · ')}</small>` : ''}</span>
-      <input type="text" class="num" inputmode="decimal" data-campo="kg" data-etiqueta="kilos" value="${numATexto(x.kg)}" placeholder="kg">
-      <input type="text" class="num" inputmode="decimal" data-campo="pvp" data-etiqueta="€/kg" value="${centATexto(pvp)}" placeholder="€/kg">
+      ${celda(x, 'kg', numATexto(x.kg), 'decimal', 'kilos')}
+      ${celda(x, 'pvp', centATexto(pvp), 'decimal', '€/kg')}
     </div>`;
   }).join('');
+
+  const fondo = res.fondo
+    ? `<div class="fila-prod rev${res.fondo.duda ? ' dudosa' : ''}" data-fondo>
+        <input type="checkbox" checked aria-label="Pasar el fondo de caja">
+        <span class="nombre-prod">Fondo de caja${res.fondo.duda ? '<small class="nota">letra dudosa: compara con lo escrito</small>' : ''}</span>
+        <span></span>
+        ${celda({ recortes: { fondo: res.fondo.recorte }, dudas: { fondo: res.fondo.duda } }, 'fondo', centATexto(res.fondo.valor), 'decimal', '€')}
+      </div>`
+    : '';
 
   const desconocidas = res.sueltas.length
     ? `<div class="aviso">${ICONO.alerta}<div><strong>No reconozco</strong><p>${res.sueltas.map((s) => `«${escapar(s)}»`).join(', ')}</p></div></div>`
     : '';
 
   $('rapido-revision').innerHTML = `<h3>Revisa antes de pasar al día</h3>
-    <p class="ayuda">Comprueba los números marcados. Quita la marca de lo que no quieras pasar.</p>
-    <div class="filas">${filaCab('', 'Producto', 'Kilos', '€/kg').replace('fila-prod cab', 'fila-prod cab rev')}${filas}</div>
+    <p class="ayuda">${res.deFoto ? 'Encima de cada número tienes lo que escribiste. ' : ''}Comprueba los marcados en amarillo y quita la marca de lo que no quieras pasar.</p>
+    <div class="filas">${filaCab('', 'Producto', 'Kilos', '€/kg').replace('fila-prod cab', 'fila-prod cab rev')}${fondo}${filas}</div>
     ${desconocidas}
     <div class="botones">
-      <button type="button" class="btn primario" id="rapido-pasar">Pasar al día (${res.filas.filter((x) => x.kg != null || x.repuesto != null).length})</button>
+      <button type="button" class="btn primario" id="rapido-pasar">Pasar al día (${res.filas.filter((x) => x.kg != null || x.repuesto != null).length} productos)</button>
       <button type="button" class="btn secundario" id="rapido-cancelar">Cancelar</button>
     </div>`;
 }
@@ -789,6 +824,11 @@ function pasarRevision() {
     }
     n++;
   });
+  const fondo = document.querySelector('#rapido-revision [data-fondo]');
+  if (fondo?.querySelector('input[type="checkbox"]').checked) {
+    const v = aCentimos(fondo.querySelector('[data-campo="fondo"]').value);
+    if (v != null) d.caja.fondo = v;
+  }
   guardar();
   $('rapido-revision').innerHTML = '';
   $('rapido-texto').value = '';
@@ -1030,6 +1070,12 @@ $('rapido-leer').addEventListener('click', () => {
     return;
   }
   pintarRevision(leerLista(texto));
+});
+
+$('foto-plantilla').addEventListener('change', (e) => {
+  const archivo = e.target.files[0];
+  e.target.value = '';
+  if (archivo) leerFoto(archivo);
 });
 
 $('imprimir-plantilla').addEventListener('click', () => {
