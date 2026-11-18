@@ -12,6 +12,19 @@ const MotorCierre = (() => {
   const horaValida = (x) => typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x);
   const validaOrden = (x) => Number.isSafeInteger(x) && x >= 1 && x <= 99;
   const camposCaja = { fondo: 'fondo de apertura', contado: 'efectivo contado', tarjeta: 'total de tarjeta', bizum: 'total de Bizum' };
+  // La báscula entrega gramos. Redondeamos al céntimo al final de cada tramo, incluso en un medio céntimo exacto.
+  function importeTramo(gramos, precio, limpieza) {
+    if (gramos <= 0 || !Number.isSafeInteger(gramos) || !moneda(precio) || !numero(limpieza) || limpieza > 100) return 0;
+    if (limpieza === 0 && Number.isSafeInteger(gramos * precio)) return Math.round(gramos * precio / 1000);
+    const [mantisa, exponente = '0'] = String(limpieza).split('e');
+    const [entera, decimal = ''] = mantisa.split('.');
+    const lugares = decimal.length - Number(exponente);
+    const escala = 10n ** BigInt(Math.max(0, lugares));
+    const porcentaje = BigInt(entera + decimal) * 10n ** BigInt(Math.max(0, -lugares));
+    const dividendo = BigInt(gramos) * BigInt(precio) * (100n * escala - porcentaje);
+    const divisor = 100000n * escala;
+    return Number((2n * dividendo + divisor) / (2n * divisor));
+  }
   function ficha(p, pvp, apertura) {
     return { id: p.id, nombre: p.nombre, tipo: p.tipo, unidad: p.tipo === 'congelado' && p.unidad !== 'kg' ? 'ud' : 'kg',
       formato: p.formato || '', merma: p.merma ?? 0, coste: p.coste ?? null, pvp: pvp ?? null, apertura: apertura ?? 0 };
@@ -21,7 +34,7 @@ const MotorCierre = (() => {
     const { cajas, precioCaja, kgNetos, kgLuque } = lote;
     const base = Number.isSafeInteger(cajas) && cajas > 0 && moneda(precioCaja) ? cajas * precioCaja : null;
     const coste = base != null && cantidad(kgNetos, 'kg') && kgNetos > 0 ? base / kgNetos : null;
-    const asignado = coste != null && cantidad(kgLuque, 'kg') && kgLuque <= kgNetos ? Math.round(coste * kgLuque) : null;
+    const asignado = coste != null && cantidad(kgLuque, 'kg') && kgLuque <= kgNetos ? Math.round(base * mil(kgLuque) / mil(kgNetos)) : null;
     return { base, coste, asignado };
   }
   function linea(p, d, movimientos) {
@@ -33,6 +46,11 @@ const MotorCierre = (() => {
     const pvpInicial = Object.hasOwn(r, 'pvp') ? r.pvp : p.pvp;
     const lote = compra(d.lotes?.[id]);
     const coste = lote ? lote.coste : (p.coste ?? null);
+    function costeDe(gramos) {
+      if (gramos === 0) return 0;
+      if (!numero(coste)) return null;
+      return lote ? Math.round(gramos * lote.base / mil(d.lotes[id].kgNetos)) : Math.round(gramos * coste / 1000);
+    }
     const margenPendiente = [];
     const faltas = [], tramos = [], salidas = [];
     const fallo = (s) => faltas.push(p.nombre + ' · ' + s);
@@ -53,7 +71,7 @@ const MotorCierre = (() => {
         + neta(retiradas) + ' y recuento ' + neta(final) + '. Sobran ' + neta(-bruto) + ' en las anotaciones. Revisa el peso y el orden.');
       if (bruto > 0 && (!moneda(precio) || precio === 0)) fallo('falta un PVP positivo para el tramo ' + desde + '–' + hasta + '.');
       const pesoVenta = bruto / 1000 * (1 - p.merma / 100);
-      const valor = Math.round(pesoVenta * (precio ?? 0));
+      const valor = importeTramo(bruto, precio, p.merma);
       tramos.push({ desde, hasta, inicio: stock/1000, entradas: entradas/1000, salidas: retiradas/1000, queda: final/1000,
         bruto: bruto/1000, neto: pesoVenta, pvp: precio, importe: valor });
       vendido += bruto; neto += pesoVenta; importe += valor;
@@ -77,13 +95,13 @@ const MotorCierre = (() => {
         retiradas += mil(m.cant);
         if (stock + entradas < retiradas) fallo(m.hora + ': las salidas superan el género disponible en ' + neta(retiradas - stock - entradas) + '. Revisa la cantidad o la hora.');
         if (m.tipo === 'merma') tirado += mil(m.cant);
-        salidas.push({ ...m, p, valor: m.tipo === 'merma' && numero(coste) ? Math.round(m.cant * coste) : null });
+        salidas.push({ ...m, p, valor: m.tipo === 'merma' ? costeDe(mil(m.cant)) : null });
       }
     }
     if (cantidad(queda, unidad)) tramo(mil(queda), 'Cierre');
     const finBruto = vendido / 1000;
-    const costeTirado = tirado === 0 ? 0 : numero(coste) ? Math.round(tirado / 1000 * coste) : null;
-    const costeVendido = vendido === 0 ? 0 : numero(coste) ? Math.round(finBruto * coste) : null;
+    const costeTirado = costeDe(tirado);
+    const costeVendido = costeDe(vendido);
     if ((vendido || tirado) && !numero(coste)) margenPendiente.push(p.nombre + (lote ? ' · falta completar el coste y el peso neto del lote.' : ' · falta el coste de compra.'));
     if (lote && lote.asignado == null) margenPendiente.push(p.nombre + ' · coste asignado a Luque pendiente. Revisa cajas, precio por caja, peso neto del lote y kg recibidos.');
     return { p, inicio, queda: queda ?? null, pvp: pvpInicial, coste, lote, tramos, salidasDetalle: salidas,
@@ -143,7 +161,7 @@ const MotorCierre = (() => {
     const informe = calcular(d, fichas);
     if (informe.faltas.length) throw new Error(informe.faltas.join('\n'));
     d.fichas = Object.fromEntries(informe.lineas.map(l => [l.p.id,copia(l.p)]));
-    d.cerrado = { hora, instante, informe: copia(informe) };
+    d.cerrado = { hora, instante, versionMotor: 2, informe: copia(informe) };
     if (d.correccion) {
       (d.revisiones ||= []).push({ ...d.correccion, terminado: instante, despues: captura(d) });
       delete d.correccion;
@@ -178,7 +196,11 @@ const MotorCierre = (() => {
       if (inf && (!Array.isArray(inf.lineas) || !Array.isArray(inf.faltas) || !Array.isArray(inf.salidas) || !Array.isArray(inf.margenPendiente)
         || !objeto(inf.caja) || inf.lineas.some(l => !objeto(l?.p) || !idValido(l.p.id) || !Array.isArray(l.tramos)))) mal();
       if (inf && !inf.legado) {
-        if (!objeto(d.fichas)) mal();
+        if (inf.lineas.some(l => !moneda(l.importe)) || inf.teorico !== inf.lineas.reduce((n,l) => n + l.importe,0)
+          || !Number.isSafeInteger(inf.real) || inf.diferencia !== inf.real - inf.teorico || !objeto(d.fichas)) mal();
+      }
+      // Una futura regla de redondeo debe respetar el informe que se guardó con una regla anterior.
+      if (inf && !inf.legado && d.cerrado.versionMotor === 2) {
         const reconstruido = calcular(d,Object.values(d.fichas));
         if (reconstruido.faltas.length || ['teorico','real','diferencia'].some(k => inf[k] !== reconstruido[k])
           || inf.lineas.length !== reconstruido.lineas.length || inf.lineas.some(l => {

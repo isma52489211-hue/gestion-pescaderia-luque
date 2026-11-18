@@ -115,3 +115,9 @@ test('Los cambios de un céntimo y las bolsas fraccionarias nunca quedan marcado
   assert.equal(M.calcular(d,[bolsa]).teorico,null);
   const otro=jornada(2);otro.caja.contado=15399;assert.equal(M.ver(otro,calcular(otro)).sinExplicar,-1);
 });
+test('La báscula redondea medio céntimo al alza, también con un porcentaje de limpieza',()=>{
+  const d=jornada(0);d.fresco.boqueron={kg:1.005,pvp:100,sobra:0};
+  const r=M.calcular(d,[{...p,coste:100}]);assert.deepEqual([r.teorico,r.lineas[0].costeVendido],[101,101]);
+  d.fresco.boqueron.kg=0.5;d.fresco.boqueron.pvp=1000;
+  assert.equal(M.calcular(d,[{...p,merma:10.1}]).teorico,450);
+});

@@ -30,6 +30,7 @@ def pruebas():
         spec.loader.exec_module(piloto)
         archivo = raiz / "Luque_piloto.html"
         archivo.write_text(piloto.generar())
+        assert archivo.read_bytes() == (RAIZ / "piloto/Luque_piloto.html").read_bytes()
         servicio = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Silencioso, directory=raiz))
         threading.Thread(target=servicio.serve_forever, daemon=True).start()
         origen = f"http://127.0.0.1:{servicio.server_port}"

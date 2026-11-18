@@ -43,7 +43,7 @@ El resumen mensual separa jornadas abiertas, cierres verificables y cierres anti
 
 ## Piloto de Luque
 
-La rama de pruebas se puede servir como web estática o empaquetar en un único HTML con Python 3. El archivo lleva los recursos del lector de plantilla y usa almacenamiento separado para el piloto. Para recuperar jornadas entre cierres, usa el mismo archivo y navegador o restaura una copia exportada del piloto.
+Descarga [Luque_piloto.html](piloto/Luque_piloto.html) para abrir la candidata en Chrome. La rama también se puede servir como web estática o empaquetar en un único HTML con Python 3. El archivo lleva los recursos del lector de plantilla y usa almacenamiento separado para el piloto. Para recuperar jornadas entre cierres, usa el mismo archivo y navegador o restaura una copia exportada del piloto.
 
 ```sh
 python3 herramientas/piloto.py Luque_piloto.html
