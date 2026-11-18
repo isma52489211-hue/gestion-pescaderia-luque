@@ -1,9 +1,11 @@
 // Caja Luque — Pescaderías Adolfo
 // Control de caja a partir del género. Importes en céntimos (enteros). Pesos en kg con 3 decimales.
 
-const CLAVE_PRODUCTOS = 'gpl.productos';
-const CLAVE_DIAS = 'gpl.dias.v2';
-const CLAVE_AJUSTES = 'gpl.ajustes';
+const PILOTO = document.documentElement.hasAttribute('data-piloto');
+const PREFIJO = PILOTO ? 'gpl.piloto.' : 'gpl.';
+const CLAVE_PRODUCTOS = PREFIJO + 'productos';
+const CLAVE_DIAS = PREFIJO + 'dias.v2';
+const CLAVE_AJUSTES = PREFIJO + 'ajustes';
 const DENOMINACIONES = [50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
 
 const FRESCO_INICIAL = [
@@ -70,9 +72,9 @@ function aNumero(texto) {
 
 const aCentimos = (t) => { const n = aNumero(t); return n == null ? null : Math.round(n * 100); };
 const aKg = (t) => { const n = aNumero(t); return n == null ? null : Math.round(n * 1000) / 1000; };
-const aEntero = (t) => { const n = aNumero(t); return n == null ? null : Math.max(0, Math.round(n)); };
+const aEntero = aNumero;
 
-const centATexto = (c) => (c == null ? '' : (c / 100).toFixed(2).replace('.', ','));
+const centATexto = (c) => (c == null ? '' : typeof c === 'number' ? (c / 100).toFixed(2).replace('.', ',') : escapar(c));
 const numATexto = (n) => (n == null ? '' : String(n).replace('.', ','));
 const redondear = (n) => Math.round(n * 1000) / 1000;
 
@@ -107,11 +109,34 @@ function avisar(texto) {
 
 // ---------- Datos ----------
 
-function leer(clave, porDefecto) {
+const CLAVE_ESTADO = PREFIJO + 'estado.v3';
+let versionLeida = null;
+let bloqueoLectura = false;
+let errorGuardado = false;
+function avisoGuardado(mensaje) {
+  $('guardado-error').hidden = !mensaje;
+  $('guardado-mensaje').textContent = mensaje || '';
+}
+
+function cargar() {
   try {
-    return JSON.parse(localStorage.getItem(clave)) ?? porDefecto;
+    versionLeida = localStorage.getItem(CLAVE_ESTADO);
+    if (versionLeida !== null) return MotorCierre.validarCopia(JSON.parse(versionLeida));
+    const leer = (k, base) => JSON.parse(localStorage.getItem(k)) ?? base;
+    const existentes = leer(CLAVE_PRODUCTOS, null);
+    const lista = existentes || catalogoInicial();
+    if (!localStorage.getItem(PREFIJO + 'marisco')) for (const nombre of MARISCO_INICIAL) {
+      if (!lista.some(p => p.id === slug(nombre))) lista.push({ id: slug(nombre), nombre, tipo: 'marisco', merma: 0 });
+    }
+    if (!localStorage.getItem(PREFIJO + 'congelado')) for (const c of CONGELADO_INICIAL) {
+      const id = 'cong-' + slug(c.nombre);
+      if (!lista.some(p => p.id === id)) lista.push({ id, tipo: 'congelado', ...c });
+    }
+    return MotorCierre.validarCopia({ productos: lista, dias: leer(CLAVE_DIAS, {}), ajustes: leer(CLAVE_AJUSTES, {}) });
   } catch {
-    return porDefecto;
+    bloqueoLectura = true;
+    avisoGuardado('No se han podido leer los datos locales. Se ha protegido la copia del dispositivo. Restaura una copia válida desde Productos.');
+    return { productos: [], dias: {}, ajustes: {} };
   }
 }
 
@@ -122,37 +147,43 @@ function catalogoInicial() {
   ];
 }
 
-let productos = leer(CLAVE_PRODUCTOS, null) || catalogoInicial();
-let dias = leer(CLAVE_DIAS, {});
-let ajustes = { ciegas: true, teclado: 'auto', ...leer(CLAVE_AJUSTES, {}) };
-
-// Catálogos guardados antes de que existieran el marisco y el congelado: se añaden una sola vez
-if (!localStorage.getItem('gpl.marisco')) {
-  for (const nombre of MARISCO_INICIAL) {
-    if (!productos.some((p) => p.id === slug(nombre))) productos.push({ id: slug(nombre), nombre, tipo: 'marisco', merma: 0 });
-  }
-  localStorage.setItem('gpl.marisco', '1');
-}
-
-if (!localStorage.getItem('gpl.congelado')) {
-  for (const c of CONGELADO_INICIAL) {
-    const id = 'cong-' + slug(c.nombre);
-    if (!productos.some((p) => p.id === id)) productos.push({ id, tipo: 'congelado', ...c });
-  }
-  localStorage.setItem('gpl.congelado', '1');
-}
+const inicial = cargar();
+let productos = inicial.productos, dias = inicial.dias;
+let ajustes = { ciegas: true, teclado: 'auto', ...inicial.ajustes };
 
 // Cada producto tiene un número fijo, el mismo que sale en la plantilla impresa
 const siguienteCodigo = () => Math.max(0, ...productos.map((p) => p.codigo || 0)) + 1;
 for (const p of productos) if (!p.codigo) p.codigo = siguienteCodigo();
 
 function guardar() {
-  localStorage.setItem(CLAVE_PRODUCTOS, JSON.stringify(productos));
-  localStorage.setItem(CLAVE_DIAS, JSON.stringify(dias));
-  localStorage.setItem(CLAVE_AJUSTES, JSON.stringify(ajustes));
+  if (bloqueoLectura) return false;
+  try {
+    if (localStorage.getItem(CLAVE_ESTADO) !== versionLeida) {
+      bloqueoLectura = true;
+      avisoGuardado('Otra pestaña ha cambiado los datos. Recarga antes de continuar para usar la versión guardada.');
+      return false;
+    }
+    const texto = JSON.stringify({ version: 3, productos, dias, ajustes });
+    localStorage.setItem(CLAVE_ESTADO, texto);
+    versionLeida = texto;
+    errorGuardado = false;
+    avisoGuardado('');
+    return true;
+  } catch {
+    errorGuardado = true;
+    avisoGuardado('No se ha guardado en este dispositivo. Mantén esta pestaña abierta y pulsa Reintentar.');
+    return false;
+  }
 }
 
-const porTipo = (tipo) => productos.filter((p) => p.tipo === tipo);
+window.addEventListener('storage', (e) => {
+  if ((e.key === CLAVE_ESTADO || e.key === null) && localStorage.getItem(CLAVE_ESTADO) !== versionLeida) {
+    bloqueoLectura = true;
+    avisoGuardado('Otra pestaña ha cambiado los datos. Recarga esta página antes de continuar.');
+  }
+});
+
+const porTipo = (tipo) => productos.filter((p) => p.tipo === tipo && !p.archivado);
 const producto = (id) => productos.find((p) => p.id === id);
 
 // Congelado: cantidades en unidades o, si va a granel, en kg
@@ -163,93 +194,98 @@ const modoTeclado = (p) => (aGranel(p) ? 'decimal' : 'numeric');
 
 function diaEditable(f) {
   dias[f] ||= { fresco: {}, congelado: {}, caja: {} };
-  dias[f].salidas ||= [];
-  return dias[f];
+  const d = dias[f];
+  d.fresco ||= {}; d.congelado ||= {}; d.caja ||= {}; d.salidas ||= []; d.fichas ||= {};
+  return d;
 }
 
 // Precio del fresco: el de ese día o, si no se ha puesto, el último usado
 function precio(f, id) {
-  const propio = dias[f]?.fresco?.[id]?.pvp;
-  if (propio != null) return propio;
+  const fila = dias[f]?.fresco?.[id];
+  if (fila && Object.hasOwn(fila,'pvp')) return fila.pvp;
   const anteriores = Object.keys(dias).filter((x) => x < f).sort().reverse();
   for (const x of anteriores) {
-    const p = dias[x].fresco?.[id]?.pvp;
+    const ultimoCambio = (dias[x].salidas || []).filter(m => m.prod === id && m.tipo === 'precio')
+      .sort((a,b) => a.hora.localeCompare(b.hora) || (a.orden ?? 1) - (b.orden ?? 1)).at(-1);
+    const p = ultimoCambio?.pvp ?? dias[x].fresco?.[id]?.pvp;
     if (p != null) return p;
   }
   return null;
 }
 
-// Retiradas y mermas de un producto en un día
-const salidasDe = (d, id) => (d?.salidas || []).filter((s) => s.prod === id).reduce((a, s) => a + s.cant, 0);
-
-// Unidades (o kg) de congelado al empezar el día, antes de reponer
 function stockAntes(id, f) {
-  let s = producto(id)?.stockInicial || 0;
-  for (const x of Object.keys(dias).filter((y) => y < f).sort()) {
-    const c = dias[x].congelado?.[id] || {};
-    s += c.repuesto || 0;
+  let s = producto(id)?.stockInicial ?? 0;
+  for (const x of Object.keys(dias).filter(y => y < f).sort()) {
+    const d = dias[x], c = d.congelado?.[id] || {};
     if (c.quedan != null) s = c.quedan;
-    else s -= salidasDe(dias[x], id);
+    else {
+      s = (c.inicial ?? d.fichas?.[id]?.apertura ?? s) + (c.repuesto ?? 0);
+      for (const m of d.salidas || []) if (m.prod === id && m.tipo !== 'precio') s += (m.tipo === 'entrada' ? 1 : -1) * m.cant;
+    }
   }
-  return redondear(Math.max(0, s));
+  return redondear(s);
 }
-
 const stockActual = (id) => stockAntes(id, '9999-12-31');
 
-function calcularDia(f) {
-  const d = dias[f] || { fresco: {}, congelado: {}, caja: {} };
-  const lineas = [];
-
-  for (const p of productos.filter((x) => x.tipo !== 'congelado')) {
-    const r = d.fresco?.[p.id];
-    if (!r?.kg) continue;
-    const salidas = salidasDe(d, p.id);
-    const vendido = Math.max(0, redondear(r.kg - (r.sobra || 0) - salidas));
-    const neto = vendido * (1 - (p.merma || 0) / 100);
-    const pvp = precio(f, p.id) || 0;
-    lineas.push({ p, inicio: r.kg, queda: r.sobra || 0, salidas, vendido, neto: redondear(neto), pvp, importe: Math.round(neto * pvp) });
+function origenSinRecuento(id, f) {
+  for (const fecha of Object.keys(dias).filter(x => x < f).sort().reverse()) {
+    const d = dias[fecha], c = d.congelado?.[id];
+    if (c?.quedan != null) return null;
+    const l = d.cerrado?.informe?.lineas?.find(l => l.p.id === id);
+    if (l && l.queda != null) return null;
+    if (d.fichas?.[id]?.apertura || c?.repuesto || c?.inicial || d.salidas?.some(m => m.prod === id)) return fecha;
   }
-
-  for (const p of porTipo('congelado')) {
-    const c = d.congelado?.[p.id] || {};
-    const salidas = salidasDe(d, p.id);
-    const inicio = redondear(stockAntes(p.id, f) + (c.repuesto || 0));
-    const queda = c.quedan ?? Math.max(0, inicio - salidas);
-    const vendido = Math.max(0, redondear(inicio - queda - salidas));
-    lineas.push({
-      p, inicio, queda, salidas, vendido, pvp: p.pvp || 0,
-      importe: Math.round(vendido * (p.pvp || 0)),
-      margen: Math.round(vendido * ((p.pvp || 0) - (p.coste || 0))),
-    });
-  }
-
-  const salidas = (d.salidas || []).map((s) => {
-    const p = producto(s.prod);
-    const pvp = p ? (p.tipo === 'congelado' ? p.pvp || 0 : precio(f, p.id) || 0) : 0;
-    return { ...s, p, valor: Math.round(s.cant * pvp) };
-  }).filter((s) => s.p);
-
-  const caja = d.caja || {};
-  const teorico = lineas.reduce((s, l) => s + l.importe, 0);
-  const hayCaja = caja.contado != null || caja.tarjeta != null || caja.bizum != null;
-  const efectivoVendido = (caja.contado || 0) - (caja.fondo || 0) + (caja.gastos || 0);
-  const real = efectivoVendido + (caja.tarjeta || 0) + (caja.bizum || 0);
-  return {
-    lineas, salidas, teorico, hayCaja, efectivoVendido, real,
-    diferencia: real - teorico, caja, cerrado: d.cerrado || null,
-  };
+  return null;
 }
-
+function fichasDelDia(f) {
+  const d = dias[f] || {};
+  const lista = { ...d.fichas };
+  // En cuanto se fija la apertura, altas del catálogo y cambios de stock de otros días ya no crean género en este día.
+  for (const p of productos) {
+    if (lista[p.id]) continue;
+    const referido = d.fresco?.[p.id] || d.congelado?.[p.id] || d.salidas?.some(m => m.prod === p.id);
+    if (p.archivado && !referido) continue;
+    const stock = p.tipo === 'congelado' && !d.aperturaFijada ? stockAntes(p.id, f) : 0;
+    lista[p.id] = MotorCierre.ficha(p, p.tipo === 'congelado' ? p.pvp : precio(f,p.id), stock);
+    if (p.tipo === 'congelado' && !d.aperturaFijada) {
+      const anterior = origenSinRecuento(p.id, f);
+      if (anterior) lista[p.id].origenPendiente = anterior;
+    }
+  }
+  return Object.values(lista);
+}
+function fijarFichas(f) {
+  const d = diaEditable(f);
+  for (const p of fichasDelDia(f)) {
+    if (p.apertura || p.origenPendiente || d.fresco[p.id] || d.congelado[p.id] || d.lotes?.[p.id] || d.salidas.some(m => m.prod === p.id)) d.fichas[p.id] ||= p;
+  }
+  d.aperturaFijada = true;
+}
+function materializarAntiguos() {
+  for (const f of Object.keys(dias).sort()) {
+    const d = dias[f];
+    if (!d.cerrado || d.cerrado.informe) continue;
+    const informe = MotorCierre.calcular(d, fichasDelDia(f));
+    informe.legado = true;
+    informe.faltas.unshift('Cierre antiguo sin foto de precios, costes, unidades y limpieza. Los kilos y cobros anotados se conservan; el previsto histórico no es verificable.');
+    informe.teorico = null; informe.diferencia = null;
+    d.cerrado.informe = informe;
+  }
+}
+function calcularDia(f) {
+  const d = dias[f] || {};
+  return MotorCierre.ver(d, d.cerrado?.informe || MotorCierre.calcular(d, fichasDelDia(f)));
+}
 function estadoDia(f) {
   const d = dias[f];
-  return {
-    genero: !!d && productos.some((p) => p.tipo !== 'congelado' && d.fresco?.[p.id]?.kg),
-    cerrado: d?.cerrado || null,
-  };
+  return { genero: !!(d && (d.sinGenero || calcularDia(f).lineas.length)), cerrado: d?.cerrado || null };
 }
+const importeVisible = n => n == null ? 'Pendiente' : fmt(n);
+const firmado = n => n == null ? 'Pendiente' : (n > 0 ? '+' : '') + fmt(n).replace('-', '−');
+const problemas = (lista) => lista.length ? '<ul class="incidencias">' + lista.map(x => '<li>' + escapar(x) + '</li>').join('') + '</ul>' : '';
 
-const claseDif = (c) => (c === 0 ? 'ok' : c < 0 ? 'falta' : 'sobra');
-const textoDif = (c) => (c === 0 ? 'Cuadra' : (c < 0 ? 'Faltan ' : 'Sobran ') + fmt(Math.abs(c)));
+const claseDif = (c) => c == null ? 'pendiente' : (c === 0 ? 'ok' : c < 0 ? 'falta' : 'sobra');
+const textoDif = (c) => c == null ? 'Pendiente de revisión' : (c === 0 ? 'Cuadra' : (c < 0 ? 'Faltan ' : 'Sobran ') + fmt(Math.abs(c)));
 
 function esHabitual(id, f) {
   for (let i = 0; i <= 14; i++) {
@@ -280,17 +316,13 @@ function grafico(barras) {
   </div>`;
 }
 
-function bloqueResultado(r, enlace) {
-  if (!r.cerrado && !r.hayCaja) return '';
-  const clase = claseDif(r.diferencia);
-  return `<div class="resultado ${clase}">
-    ${clase === 'ok' ? ICONO.ok : ICONO.alerta}
-    <div>
-      <p class="grande">${textoDif(r.diferencia)}</p>
-      <p>Debería haber ${fmt(r.teorico)} · Cobrado ${fmt(r.real)}${r.cerrado ? ` · Cierre a las ${r.cerrado.hora}` : ''}</p>
-    </div>
-    ${enlace || ''}
-  </div>`;
+function bloqueResultado(r, enlace = '') {
+  const clase = r.sinExplicar == null ? 'pendiente' : claseDif(r.sinExplicar);
+  const estado = r.sinExplicar == null ? 'Pendiente de revisión' : r.diferencia === 0 ? 'Cuadra al céntimo'
+    : r.sinExplicar === 0 ? 'Diferencia justificada' : 'Diferencia por revisar';
+  return `<div class="resultado ${clase}">${r.sinExplicar === 0 ? ICONO.ok : ICONO.alerta}<div><p class="grande">${estado}</p>
+    <p>Previsto ${importeVisible(r.teorico)} · Cobrado ${importeVisible(r.real)}</p>
+    <p>Diferencia inicial ${firmado(r.diferencia)} · Sin explicar ${firmado(r.sinExplicar)}</p></div>${enlace}</div>`;
 }
 
 // ---------- Vista: inicio ----------
@@ -318,30 +350,30 @@ function pintarInicio() {
   // Cifras
   const ayer = calcularDia(sumarDias(hoy, -1));
   let semana = 0;
-  let difMes = 0;
+  let pendienteMes = 0;
   const barras = [];
   for (let i = 6; i >= 0; i--) {
     const f = sumarDias(hoy, -i);
     const x = calcularDia(f);
-    if (x.hayCaja) semana += x.real;
+    if (x.cerrado && x.real != null) semana += x.real;
     barras.push({
       etiqueta: fecha(f, { weekday: 'short' }).replace('.', ''),
       titulo: fechaCorta(f),
-      valor: x.hayCaja ? x.real : x.teorico,
-      provisional: !x.hayCaja,
+      valor: x.cerrado ? (x.real ?? 0) : 0,
+      provisional: !x.cerrado,
       hoy: i === 0,
     });
   }
   for (const f of Object.keys(dias).filter((x) => x.startsWith(hoy.slice(0, 7)))) {
     const x = calcularDia(f);
-    if (x.hayCaja) difMes += x.diferencia;
+    if (x.cerrado && x.sinExplicar != null) pendienteMes += Math.abs(x.sinExplicar);
   }
   const cifras = [
-    ['Debería vender hoy', fmt(r.teorico)],
-    ['Cobrado hoy', r.hayCaja ? fmt(r.real) : '—'],
-    ['Cobrado ayer', ayer.hayCaja ? fmt(ayer.real) : '—'],
+    ['Previsto hoy', r.cerrado ? importeVisible(r.teorico) : 'Tras el cierre'],
+    ['Cobrado hoy', r.cerrado ? importeVisible(r.real) : 'Pendiente'],
+    ['Cobrado ayer', ayer.cerrado ? importeVisible(ayer.real) : 'Pendiente'],
     ['Últimos 7 días', fmt(semana)],
-    ['Diferencia del mes', `<span class="${claseDif(difMes)}">${fmt(difMes)}</span>`],
+    ['Euros sin explicar en cierres verificables', fmt(pendienteMes)],
   ];
   $('inicio-cifras').innerHTML = cifras.map(([k, v]) => `<div class="cifra"><small>${k}</small><strong>${v}</strong></div>`).join('');
   $('inicio-grafico').innerHTML = grafico(barras);
@@ -351,7 +383,7 @@ function pintarInicio() {
   for (let i = 1; i <= 14; i++) {
     const f = sumarDias(hoy, -i);
     const x = estadoDia(f);
-    if (x.genero && !x.cerrado) {
+    if (dias[f] && !x.cerrado) {
       avisos.push({ titulo: `Cierre sin terminar: ${fechaCorta(f)}`, texto: 'El género está apuntado pero falta terminar el cierre.', boton: 'Ir al día', datos: `data-ir-vista="dia" data-ir-fecha="${f}" data-ir-paso="2"` });
     }
   }
@@ -363,9 +395,9 @@ function pintarInicio() {
   if (reponer.length) {
     avisos.push({ titulo: 'Hay que reponer congelado', texto: reponer.map((p) => `${p.nombre} (${fmtCant(p, redondear(p.stockIdeal - stockActual(p.id)))})`).join(', '), boton: 'Ver congelado', datos: 'data-ir-vista="congelado"' });
   }
-  const congSinPrecio = porTipo('congelado').filter((p) => !p.pvp).length;
+  const congSinPrecio = porTipo('congelado').filter((p) => stockActual(p.id) > 0 && !p.pvp).length;
   if (congSinPrecio) {
-    avisos.push({ titulo: `${congSinPrecio} productos congelados sin precio`, texto: 'Sin precio de venta no cuentan en el cuadre.', boton: 'Poner precios', datos: 'data-ir-vista="productos"' });
+    avisos.push({ titulo: `${congSinPrecio} productos congelados sin precio`, texto: 'La app pedirá el precio si hay venta.', boton: 'Poner precios', datos: 'data-ir-vista="productos"' });
   }
   $('inicio-avisos').innerHTML = avisos.length
     ? '<h2>Avisos</h2>' + avisos.map((a) => `<div class="aviso">${ICONO.alerta}
@@ -389,7 +421,7 @@ function pintarPasos() {
   const r = calcularDia(f);
   $('estado-paso-1').textContent = e.genero ? 'Hecho' : 'Pendiente';
   $('estado-paso-2').textContent = e.cerrado ? `Hecho · ${e.cerrado.hora}` : 'Pendiente';
-  $('estado-paso-3').textContent = e.cerrado ? textoDif(r.diferencia) : ajustes.ciegas ? 'Tras el cierre' : 'Provisional';
+  $('estado-paso-3').textContent = e.cerrado ? (r.diferencia === 0 ? 'Cuadra' : r.sinExplicar === 0 ? 'Justificado' : 'Revisar') : ajustes.ciegas ? 'Tras el cierre' : 'Provisional';
   document.querySelectorAll('.pasos button').forEach((b) => {
     const n = +b.dataset.paso;
     b.classList.toggle('hecho', (n === 1 && e.genero) || (n >= 2 && !!e.cerrado));
@@ -413,7 +445,7 @@ function pintarGenero() {
   };
 
   const secciones = A_PESO.map((tipo) => {
-    const lista = porTipo(tipo);
+    const lista = fichasDelDia(f).filter(p => p.tipo === tipo);
     if (!lista.length) return '';
     const habituales = lista.filter((p) => esHabitual(p.id, f));
     const otros = lista.filter((p) => !habituales.includes(p));
@@ -429,14 +461,14 @@ function pintarGenero() {
     </section>`;
   });
 
-  const cong = porTipo('congelado');
+  const cong = fichasDelDia(f).filter(p => p.tipo === 'congelado');
   if (cong.length) {
     secciones.push(`<section class="tarjeta categoria">
       ${cabeceraCategoria('congelado', 'Lo que hay en la tienda y lo que repones hoy')}
       ${filaCab('Producto', 'Hay', 'Repongo')}
       ${cong.map((p) => `<div class="fila-prod${d.congelado?.[p.id]?.repuesto ? ' con-dato' : ''}" data-nombre="${escapar(normalizar(p.nombre))}">
         <span class="nombre-prod">${escapar(p.nombre)}${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
-        <span class="dato">${fmtCant(p, stockAntes(p.id, f))}</span>
+        <span class="dato">${fmtCant(p, p.apertura)}</span>
         <input type="text" class="num" inputmode="${modoTeclado(p)}" data-congelado="repuesto" data-id="${p.id}" data-etiqueta="repongo" value="${numATexto(d.congelado?.[p.id]?.repuesto)}" placeholder="0" aria-label="Repongo de ${escapar(p.nombre)}">
       </div>`).join('')}
     </section>`);
@@ -445,6 +477,18 @@ function pintarGenero() {
   $('genero').innerHTML = secciones.join('');
   const fondo = document.querySelector('[data-caja="fondo"]');
   fondo.value = centATexto(dias[f]?.caja?.fondo);
+  $('sin-genero').checked = !!d.sinGenero;
+  $('cong-apertura').innerHTML = cong.length ? '<summary>Comprobar apertura o precio del congelado</summary>' + cong.map(p => {
+    const c = d.congelado?.[p.id] || {};
+    return `<div class="fila-prod"><span>${escapar(p.nombre)} <small>${escapar(p.unidad)}</small></span>
+      <input inputmode="decimal" data-congelado="inicial" data-id="${p.id}" value="${numATexto(c.inicial)}" placeholder="${numATexto(p.apertura)}" aria-label="Apertura física de ${escapar(p.nombre)}">
+      <input inputmode="decimal" data-congelado="pvp" data-id="${p.id}" value="${centATexto(Object.hasOwn(c,'pvp') ? c.pvp : p.pvp)}" placeholder="€/kg o ud" aria-label="PVP inicial de ${escapar(p.nombre)}"></div>`;
+  }).join('') : '';
+  $('cong-apertura').hidden = !cong.length;
+  $('lote-producto').innerHTML = fichasDelDia(f).filter(p => p.tipo !== 'congelado').map(p => `<option value="${p.id}">${escapar(p.nombre)}</option>`).join('');
+  pintarLote();
+  document.querySelectorAll('#panel-1 input:not([type=search]), #panel-1 textarea, #panel-1 select, #rapido button:not(#imprimir-plantilla), #lote-guardar, #borrar-dia').forEach(el => { el.disabled = !!d.cerrado; });
+  if (d.correccion) $('borrar-dia').disabled = true;
   aplicarBusqueda();
 }
 
@@ -470,6 +514,8 @@ function pintarCierre() {
   const cerrado = d.cerrado;
   const ciega = ajustes.ciegas;
 
+  $('legado-comprobacion').hidden = !d.correccion?.antes?.cerrado?.informe?.legado;
+  $('legado-parte').value = d.parteLegado || '';
   $('cierre-form').disabled = !!cerrado;
   $('terminar-cierre').hidden = !!cerrado;
   $('cierre-estado').innerHTML = cerrado
@@ -478,37 +524,41 @@ function pintarCierre() {
         <button class="btn secundario" id="reabrir">Reabrir cierre</button></div>`
     : '';
 
-  const llevados = productos.filter((p) => p.tipo !== 'congelado' && d.fresco?.[p.id]?.kg);
+  const refs = calcularDia(f).lineas;
+  const llevados = refs.filter(l => l.p.tipo !== 'congelado').map(l => l.p);
   $('cierre-fresco').innerHTML = llevados.length
     ? (ciega ? filaCab('Producto', 'Sobra kg') : filaCab('Producto', 'Empezó', 'Sobra kg')) + llevados.map((p) => {
-      const r = d.fresco[p.id];
+      const r = d.fresco?.[p.id] || {};
       return `<div class="fila-prod${ciega ? ' dos' : ''}">
         <span class="nombre-prod">${escapar(p.nombre)}</span>
         ${ciega ? '' : `<span class="dato">${fmtKg(r.kg)}</span>`}
-        <input type="text" class="num" inputmode="decimal" data-fresco="sobra" data-id="${p.id}" data-etiqueta="sobra (kg)" value="${numATexto(r.sobra)}" placeholder="0" aria-label="Kilos que sobran de ${escapar(p.nombre)}">
+        <input type="text" class="num" inputmode="decimal" data-fresco="sobra" data-id="${p.id}" data-etiqueta="sobra (kg)" value="${numATexto(r.sobra)}" placeholder="Pendiente" aria-label="Kilos que sobran de ${escapar(p.nombre)}">
       </div>`;
     }).join('')
     : '<p class="ayuda">Todavía no se ha apuntado el género del día (paso 1).</p>';
 
-  const cong = porTipo('congelado');
+  const cong = refs.filter(l => l.p.tipo === 'congelado').map(l => l.p);
   $('cierre-congelado').innerHTML = cong.length
     ? (ciega ? filaCab('Producto', 'Quedan') : filaCab('Producto', 'Había', 'Quedan')) + cong.map((p) => {
       const c = d.congelado?.[p.id] || {};
-      const habia = redondear(stockAntes(p.id, f) + (c.repuesto || 0));
+      const habia = redondear((c.inicial ?? p.apertura) + (c.repuesto || 0));
       return `<div class="fila-prod${ciega ? ' dos' : ''}">
         <span class="nombre-prod">${escapar(p.nombre)}${p.formato ? ` <small class="etiqueta">${escapar(p.formato)}</small>` : ''}</span>
         ${ciega ? '' : `<span class="dato">${fmtCant(p, habia)}</span>`}
-        <input type="text" class="num" inputmode="${modoTeclado(p)}" data-congelado="quedan" data-id="${p.id}" data-etiqueta="quedan" value="${numATexto(c.quedan)}" placeholder="${ciega ? '' : numATexto(habia)}" aria-label="Quedan de ${escapar(p.nombre)}">
+        <input type="text" class="num" inputmode="${modoTeclado(p)}" data-congelado="quedan" data-id="${p.id}" data-etiqueta="quedan" value="${numATexto(c.quedan)}" placeholder="Pendiente" aria-label="Quedan de ${escapar(p.nombre)}">
       </div>`;
     }).join('')
     : '<p class="ayuda">No hay productos congelados.</p>';
 
   // Retiradas y mermas
-  const opciones = [...llevados, ...cong];
+  const opciones = fichasDelDia(f).sort((a,b) => Number(refs.some(l => l.p.id === b.id)) - Number(refs.some(l => l.p.id === a.id)));
   $('salida-prod').innerHTML = opciones.length
     ? opciones.map((p) => `<option value="${p.id}">${escapar(p.nombre)} (${aGranel(p) ? 'kg' : 'uds'})</option>`).join('')
     : '<option value="">Sin productos</option>';
   pintarSalidas();
+  $('mov-hora').value ||= horaActual();
+  configurarMovimiento();
+  mostrarFaltas(false);
 
   document.querySelectorAll('#cierre-form [data-caja]').forEach((i) => {
     const v = d.caja?.[i.dataset.caja];
@@ -517,63 +567,87 @@ function pintarCierre() {
   escribirDesglose(d.caja?.desglose || {});
 }
 
+const nombresMov = { precio: 'Cambio de PVP', entrada: 'Entrada', merma: 'Pescado tirado', traslado: 'Traslado', retirada: 'Otra salida' };
+function configurarMovimiento() {
+  const tipo = $('salida-tipo').value;
+  $('mov-etiqueta').textContent = tipo === 'precio' ? 'Cantidad que quedaba al cambiar el precio' : 'Cantidad (kg o unidades)';
+  $('mov-precio-label').hidden = tipo !== 'precio';
+  $('mov-destino-label').hidden = tipo !== 'traslado';
+}
 function pintarSalidas() {
-  const d = dias[$('fecha').value];
-  const lista = (d?.salidas || []).map((s, i) => ({ s, i, p: producto(s.prod) })).filter((x) => x.p);
-  $('lista-salidas').innerHTML = lista.map(({ s, i, p }) => `<div class="salida">
-    <span class="etiqueta">${s.tipo === 'merma' ? 'Merma' : 'Retirada'}</span>
-    <span><strong>${escapar(p.nombre)}</strong> · ${fmtCant(p, s.cant)}<small>${s.motivo ? escapar(s.motivo) + ' · ' : ''}${s.hora}</small></span>
-    <span></span>
-    <button type="button" class="btn-borrar" data-borrar-salida="${i}" aria-label="Quitar">✕</button>
-  </div>`).join('');
+  const f = $('fecha').value, d = dias[f] || {};
+  const fichas = fichasDelDia(f);
+  const lista = (d.salidas || []).map((m,i) => ({ m, i })).sort((a,b) => String(a.m.hora).localeCompare(String(b.m.hora)) || (a.m.orden ?? 1) - (b.m.orden ?? 1));
+  $('lista-salidas').innerHTML = lista.map(({ m, i }) => {
+    const p = fichas.find(x => x.id === m.prod);
+    const cantidad = p ? fmtCant(p, m.cant) : numATexto(m.cant);
+    return `<div class="salida"><span>${escapar(m.hora || 'Sin hora')} · #${escapar(m.orden ?? 1)}</span>
+      <span><strong>${escapar(p?.nombre || m.prod)}</strong> · ${escapar(nombresMov[m.tipo] || m.tipo)}
+      <small>${cantidad}${m.tipo === 'precio' ? ' a ' + fmt(m.pvp) : ''}${m.destino ? ' → ' + escapar(m.destino) : ''}
+      ${m.motivo ? ' · ' + escapar(m.motivo) : ''}</small></span>
+      <button type="button" class="btn-borrar" data-borrar-salida="${i}" aria-label="Quitar movimiento">✕</button></div>`;
+  }).join('');
+}
+let intentoCierre = false;
+function mostrarFaltas(intentar) {
+  if (intentar) intentoCierre = true;
+  const r = calcularDia($('fecha').value), el = $('faltas-cierre');
+  el.hidden = !!r.cerrado || !intentoCierre || !r.faltas.length;
+  el.innerHTML = el.hidden ? '' : '<strong>Falta revisar</strong>' + problemas(r.faltas);
+  if (intentar && !el.hidden) el.focus();
+}
+function pintarLote() {
+  const id = $('lote-producto').value, lote = dias[$('fecha').value]?.lotes?.[id] || {};
+  for (const [campo,clave] of Object.entries({ cajas:'cajas', netos:'kgNetos', luque:'kgLuque' })) $('lote-' + campo).value = numATexto(lote[clave]);
+  $('lote-precio').value = centATexto(lote.precioCaja);
+  const c = MotorCierre.compra(lote);
+  $('lote-estado').textContent = Object.keys(lote).length ? 'Base ' + importeVisible(c.base) + ' · Coste por kg ' + (c.coste == null ? 'pendiente del peso neto y la base' : fmt(c.coste)) + ' · Asignado a Luque ' + importeVisible(c.asignado) : '';
 }
 
 function pintarCuadre() {
-  const f = $('fecha').value;
-  const r = calcularDia(f);
-
+  const f = $('fecha').value, d = dias[f] || {}, r = calcularDia(f);
   if (ajustes.ciegas && !r.cerrado) {
-    $('cuadre').innerHTML = `<div class="resultado pendiente">${ICONO.candado}
-      <div><p class="grande">El cuadre sale al terminar el cierre</p>
-      <p>Así el recuento se hace sin saber cuánto debería salir. Termina el cierre en el paso 2.</p></div>
+    $('cuadre').innerHTML = `<div class="resultado pendiente">${ICONO.candado}<div><p class="grande">El cuadre sale al terminar el cierre</p>
+      <p>${d.correccion ? 'Corrección en curso. ' : ''}Introduce los recuentos y los cobros en el paso 2.</p></div>
       <button class="btn primario" data-ir-vista="dia" data-ir-paso="2">Ir al cierre</button></div>`;
     return;
   }
-
-  const vendidas = r.lineas.filter((l) => l.vendido > 0);
-  const aviso = r.cerrado ? '' : `<div class="aviso">${ICONO.reloj}<div><strong>Cuadre provisional</strong><p>El cierre todavía no está terminado.</p></div></div>`;
-
-  const detalle = vendidas.length
-    ? vendidas.map((l) => `<div class="linea">
-        <span>${escapar(l.p.nombre)}${l.p.merma ? ` <small class="etiqueta">merma ${numATexto(l.p.merma)} %</small>` : ''}</span>
-        <span class="importe">${fmt(l.importe)}</span>
-        <small>${fmtCant(l.p, l.vendido)}${l.p.merma ? ` − ${numATexto(l.p.merma)} % = ${fmtKg(l.neto)}` : ''} × ${fmt(l.pvp)}${aGranel(l.p) ? '/kg' : ''}</small>
-      </div>`).join('') + `<div class="linea total"><span>Debería haber vendido</span><span class="importe">${fmt(r.teorico)}</span></div>`
-    : '<p class="ayuda">No consta nada vendido.</p>';
-
-  const salidas = r.salidas.length
-    ? `<section class="tarjeta"><h2>Retiradas y mermas</h2>${r.salidas.map((s) => `<div class="linea">
-        <span>${s.tipo === 'merma' ? 'Merma' : 'Retirada'} · ${escapar(s.p.nombre)}</span>
-        <span class="importe">${fmt(s.valor)}</span>
-        <small>${fmtCant(s.p, s.cant)}${s.motivo ? ' · ' + escapar(s.motivo) : ''}</small>
-      </div>`).join('')}<p class="ayuda">Valor a precio de venta. No cuenta como venta.</p></section>`
-    : '';
-
+  const cifras = [['Previsto', importeVisible(r.teorico)], ['Cobrado', importeVisible(r.real)],
+    ['Diferencia inicial', firmado(r.diferencia)], ['Sin explicar', firmado(r.sinExplicar)]];
+  const detalle = r.lineas.map(l => {
+    const cantidad = x => fmtCant(l.p, x);
+    const tramos = l.tramos.map(t => `<p class="ayuda">${escapar(t.desde)}–${escapar(t.hasta)} · ${cantidad(t.bruto)}
+      ${l.p.merma ? ' menos ' + numATexto(l.p.merma) + ' % de limpieza' : ''} × ${importeVisible(t.pvp)} = ${importeVisible(t.importe)}</p>`).join('');
+    return `<details><summary>${escapar(l.p.nombre)} · ${r.legado ? 'Sin previsto verificable' : importeVisible(l.importe)}</summary>
+      <p>Apertura ${cantidad(l.inicio)} · Recuento ${l.queda == null ? 'pendiente' : cantidad(l.queda)}</p>
+      ${r.legado ? '' : tramos + '<p>Coste del género tirado ' + importeVisible(l.costeTirado) + ' · Margen tras merma ' + importeVisible(l.margen) + '</p>'}
+      ${l.salidasDetalle.map(m => '<p>' + escapar(nombresMov[m.tipo] || m.tipo) + ' · ' + cantidad(m.cant) + (m.destino ? ' → ' + escapar(m.destino) : '') + (m.motivo ? ' · ' + escapar(m.motivo) : '') + ' · ' + escapar(m.hora || 'Sin hora') + '</p>').join('')}</details>`;
+  }).join('');
   const c = r.caja;
-  const caja = `<section class="tarjeta"><h2>Caja</h2>
-    <div class="linea"><span>Efectivo vendido</span><span class="importe">${fmt(r.efectivoVendido)}</span>
-      <small>${fmt(c.contado)} contado − ${fmt(c.fondo)} fondo + ${fmt(c.gastos)} gastos</small></div>
-    <div class="linea"><span>Tarjeta</span><span class="importe">${fmt(c.tarjeta)}</span></div>
-    <div class="linea"><span>Bizum</span><span class="importe">${fmt(c.bizum)}</span></div>
-    <div class="linea total"><span>Total cobrado</span><span class="importe">${fmt(r.real)}</span></div>
-    ${c.fondoManana != null ? `<div class="linea"><span>Se retira de la caja</span><span class="importe">${fmt((c.contado || 0) - c.fondoManana)}</span><small>Se deja ${fmt(c.fondoManana)} para mañana</small></div>` : ''}
-    ${c.notas ? `<p class="ayuda">Notas: ${escapar(c.notas)}</p>` : ''}
-  </section>`;
-
-  $('cuadre').innerHTML = aviso
-    + (bloqueResultado(r) || `<div class="resultado pendiente">${ICONO.reloj}<div><p class="grande">Falta apuntar la caja</p></div></div>`)
-    + `<section class="tarjeta"><h2>Vendido por producto</h2>${detalle}</section>`
-    + salidas + caja;
+  const cuadreCaja = `<details class="tarjeta"><summary>Desglose de caja</summary><p>Cajón ${importeVisible(c.contado)} − fondo ${importeVisible(c.fondo)}
+    + gastos ${fmt(c.gastos)} + retiradas previas ${fmt(c.retiradas)} − entradas de efectivo ${fmt(c.ingresos)} = ${r.real == null ? 'pendiente' : fmt(r.efectivoVendido)} en efectivo.</p>
+    <p>Tarjeta ${importeVisible(c.tarjeta)} · Bizum ${importeVisible(c.bizum)}</p>
+    ${c.fondoManana == null ? '' : '<p>Después del recuento se dejan ' + fmt(c.fondoManana) + ' para mañana.</p>'}
+    ${c.notas ? '<p>Nota · ' + escapar(c.notas) + '</p>' : ''}</details>`;
+  const justificaciones = (d.justificaciones || []).map(j => '<p>' + firmado(j.importe) + ' · ' + escapar(j.comprobante) + ' · ' + escapar(j.fecha) + '</p>').join('');
+  const registro = (d.revisiones || []).map(v => {
+    const previo = v.antes.cerrado.informe, actual = v.despues.cerrado.informe;
+    return `<details class="revision-registro"><summary>${escapar(v.motivo)} · ${escapar(v.terminado)}</summary>
+      <p>Antes · previsto ${importeVisible(previo?.teorico)}, cobrado ${importeVisible(previo?.real)}. Después · previsto ${importeVisible(actual?.teorico)}, cobrado ${importeVisible(actual?.real)}.</p>
+      <details><summary>Ver anotaciones antes y después</summary><pre>${escapar(JSON.stringify({ antes: v.antes, despues: v.despues },null,2))}</pre></details></details>`;
+  }).join('');
+  const estado = !r.cerrado ? 'Provisional · día abierto' : r.diferencia == null ? 'Cierre pendiente de revisión'
+    : r.diferencia === 0 ? 'Cuadra al céntimo' : r.sinExplicar === 0 ? 'Diferencia justificada' : 'Diferencia por revisar';
+  $('cuadre').innerHTML = `<h2>${estado}</h2><div class="revision-cifras">${cifras.map(([k,v]) => '<div class="cifra"><small>' + k + '</small><strong>' + v + '</strong></div>').join('')}</div>
+    ${problemas(r.faltas)}
+    ${r.margenPendiente.length ? '<details class="tarjeta"><summary>Margen o reparto pendiente</summary>' + problemas(r.margenPendiente) + '</details>' : ''}
+    ${r.cerrado && r.sinExplicar != null && r.sinExplicar !== 0 ? `<details class="tarjeta"><summary>Justificar parte de la diferencia</summary>
+      <label>Importe con signo (€)<input id="just-importe" type="text" placeholder="Ej. −1,00"></label>
+      <label>Comprobante o referencia verificable<input id="just-ref" type="text"></label>
+      <button class="btn secundario" id="just-guardar">Guardar justificación</button></details>` : ''}
+    ${justificaciones ? '<section class="tarjeta"><h2>Justificaciones</h2>' + justificaciones + '</section>' : ''}
+    <section class="tarjeta"><h2>Género y ventas por tramo</h2>${detalle || '<p>Sin género.</p>'}</section>
+    ${cuadreCaja}${registro ? '<section class="tarjeta"><h2>Correcciones</h2>' + registro + '</section>' : ''}`;
 }
 
 function pintarDia() {
@@ -609,7 +683,7 @@ function escribirDesglose(d) {
 // ---------- Plantilla imprimible ----------
 
 // El diseño (posición de cada casilla) lo comparten la hoja impresa y el lector de fotos (lector.js)
-const disenoActual = () => disenoPlantilla(productos, TIPOS);
+const disenoActual = () => disenoPlantilla(productos.filter(p => !p.archivado), TIPOS);
 
 function construirPlantilla() {
   const d = disenoActual();
@@ -674,7 +748,7 @@ const mismaPalabra = (a, b) => a === b || a + 's' === b || b + 's' === a || a + 
 
 function leerLista(texto) {
   const T = trocear(texto);
-  const candidatos = productos
+  const candidatos = productos.filter(p => !p.archivado)
     .map((p) => ({ p, palabras: trocear(p.nombre).map((x) => x.palabra).filter(Boolean) }))
     .filter((c) => c.palabras.length)
     .sort((a, b) => b.palabras.length - a.palabras.length);
@@ -809,6 +883,7 @@ function pintarRevision(res) {
 
 function pasarRevision() {
   const f = $('fecha').value;
+  if (dias[f]?.cerrado || bloqueoLectura) return;
   const d = diaEditable(f);
   let n = 0;
   document.querySelectorAll('#rapido-revision [data-rev]').forEach((fila) => {
@@ -833,7 +908,8 @@ function pasarRevision() {
     const v = aCentimos(fondo.querySelector('[data-campo="fondo"]').value);
     if (v != null) d.caja.fondo = v;
   }
-  guardar();
+  fijarFichas(f);
+  if (!guardar()) return;
   $('rapido-revision').innerHTML = '';
   $('rapido-texto').value = '';
   pintarDia();
@@ -876,56 +952,48 @@ function textoReposicion() {
 // ---------- Vista: resumen ----------
 
 function pintarResumen() {
-  const mes = $('mes').value;
-  const fechas = Object.keys(dias).filter((f) => f.startsWith(mes)).sort();
-  const t = { teorico: 0, real: 0, kg: 0, uds: 0, margen: 0, mermas: 0 };
-  const porProducto = {};
-  const filas = [];
-  const barras = [];
-
+  const mes = $('mes').value, fechas = Object.keys(dias).filter(f => f.startsWith(mes)).sort();
+  let teorico = 0, real = 0, inicial = 0, abiertos = 0, historicos = 0, verificables = 0, revisables = 0;
+  let faltan = 0, sobran = 0, kg = 0, uds = 0, margen = 0, mermas = 0, sinCoste = false;
+  const porProducto = new Map(), barras = [], filas = [];
   for (const f of fechas) {
-    const r = calcularDia(f);
-    if (!r.lineas.some((l) => l.vendido) && !r.hayCaja) continue;
-    t.teorico += r.teorico;
-    if (r.hayCaja) t.real += r.real;
-    t.mermas += r.salidas.filter((s) => s.tipo === 'merma').reduce((a, s) => a + s.valor, 0);
-    for (const l of r.lineas) {
-      if (!l.vendido) continue;
-      if (aGranel(l.p)) t.kg += l.vendido; else t.uds += l.vendido;
-      t.margen += l.margen || 0;
-      const acc = (porProducto[l.p.id] ||= { p: l.p, cantidad: 0, importe: 0 });
-      acc.cantidad += l.vendido;
-      acc.importe += l.importe;
+    const r = calcularDia(f), dia = fecha(f, { weekday:'short', day:'numeric' });
+    if (!r.cerrado) {
+      abiertos++;
+      filas.push(`<tr data-fecha="${f}"><td>${dia}</td><td colspan="3">Pendiente · día abierto</td></tr>`);
+      continue;
     }
-    filas.push(`<tr data-fecha="${f}"><td>${fecha(f, { weekday: 'short', day: 'numeric' })}</td><td>${fmt(r.teorico)}</td>
-      <td>${r.hayCaja ? fmt(r.real) : '—'}</td>
-      <td class="${r.hayCaja ? claseDif(r.diferencia) : ''}">${r.hayCaja ? textoDif(r.diferencia) : 'Sin caja'}</td></tr>`);
-    barras.push({ etiqueta: fecha(f, { day: 'numeric' }), titulo: fechaCorta(f), valor: r.hayCaja ? r.real : r.teorico, provisional: !r.hayCaja });
+    if (r.real != null) real += r.real;
+    if (r.teorico == null || r.diferencia == null || r.sinExplicar == null) {
+      historicos++;
+      filas.push(`<tr data-fecha="${f}"><td>${dia}</td><td>Pendiente</td><td>${importeVisible(r.real)}</td><td>Revisar datos</td></tr>`);
+      continue;
+    }
+    verificables++; teorico += r.teorico; inicial += r.diferencia;
+    if (r.sinExplicar !== 0) revisables++;
+    faltan += Math.min(0,r.sinExplicar); sobran += Math.max(0,r.sinExplicar);
+    for (const l of r.lineas) {
+      if (aGranel(l.p)) kg += l.neto; else uds += l.neto;
+      if (l.margen == null || l.costeTirado == null) sinCoste = true;
+      margen += l.margen ?? 0; mermas += l.costeTirado ?? 0;
+      if (!l.vendido) continue;
+      const clave = l.p.id + '/' + l.p.unidad;
+      const item = porProducto.get(clave) || { p:l.p, cant:0, total:0 };
+      item.cant += l.neto; item.total += l.importe; porProducto.set(clave,item);
+    }
+    filas.push(`<tr data-fecha="${f}"><td>${dia}</td><td>${fmt(r.teorico)}</td><td>${fmt(r.real)}</td><td>Inicial ${firmado(r.diferencia)}<br>Sin explicar ${firmado(r.sinExplicar)}</td></tr>`);
+    barras.push({ etiqueta:fecha(f,{day:'numeric'}), titulo:fechaCorta(f), valor:r.real });
   }
-
-  $('tabla-dias').innerHTML = filas.join('') || '<tr><td colspan="4" class="vacio">No hay días con datos en este mes.</td></tr>';
-  $('grafico-mes').innerHTML = barras.length ? grafico(barras) : '<p class="ayuda">Sin datos este mes.</p>';
-
-  const prods = Object.values(porProducto).sort((a, b) => b.importe - a.importe);
-  $('tabla-productos').innerHTML = prods.length
-    ? prods.map((x) => `<tr><td>${escapar(x.p.nombre)}</td><td>${fmtCant(x.p, x.cantidad)}</td><td>${fmt(x.importe)}</td></tr>`).join('')
-    : '<tr><td colspan="3" class="vacio">Sin ventas este mes.</td></tr>';
-
-  const dif = t.real - fechas.reduce((a, f) => { const r = calcularDia(f); return a + (r.hayCaja ? r.teorico : 0); }, 0);
-  const cifras = [
-    ['Debería haber vendido', fmt(t.teorico)],
-    ['Cobrado en caja', fmt(t.real)],
-    ['Diferencia (días con caja)', `<span class="${claseDif(dif)}">${fmt(dif)}</span>`],
-    ['Días con datos', filas.length],
-    ['Vendido a peso', fmtKg(redondear(t.kg))],
-    ['Congelado por unidades', fmtUd(t.uds)],
-    ['Ganancia congelado', fmt(t.margen)],
-    ['Mermas (a precio de venta)', fmt(t.mermas)],
-  ];
-  $('cifras-mes').innerHTML = cifras.map(([k, v]) => `<div class="cifra"><small>${k}</small><strong>${v}</strong></div>`).join('');
+  const tabla = [...porProducto.values()].sort((a,b) => b.total-a.total);
+  $('tabla-productos').innerHTML = tabla.map(x => `<tr><td>${escapar(x.p.nombre)}</td><td>${fmtCant(x.p,x.cant)}</td><td>${fmt(x.total)}</td></tr>`).join('') || '<tr><td colspan="3">Sin ventas cerradas verificables.</td></tr>';
+  $('tabla-dias').innerHTML = filas.join('') || '<tr><td colspan="4">Sin jornadas registradas.</td></tr>';
+  $('grafico-mes').innerHTML = barras.length ? grafico(barras) : '<p class="ayuda">Aún no hay cierres verificables.</p>';
+  const cifras = [['Previsto · cierres verificables',fmt(teorico)],['Cobrado · cierres con caja conocida',fmt(real)],
+    ['Diferencia inicial · verificables',firmado(inicial)],['Sin explicar · faltas',firmado(faltan)],['Sin explicar · sobrantes',firmado(sobran)],
+    ['Cierres con diferencia pendiente',revisables],['Cierres verificables',verificables],['Días abiertos',abiertos],['Cierres por reconstruir',historicos],
+    ['Vendido a peso',fmtKg(redondear(kg))],['Unidades vendidas',fmtUd(uds)],['Margen tras merma',sinCoste ? 'Pendiente' : fmt(margen)],['Género tirado a coste',sinCoste && fechas.some(f => calcularDia(f).cerrado && calcularDia(f).lineas.some(l => l.costeTirado == null)) ? 'Pendiente' : fmt(mermas)]];
+  $('cifras-mes').innerHTML = cifras.map(([k,v]) => `<div class="cifra"><small>${k}</small><strong>${v}</strong></div>`).join('');
 }
-
-// ---------- Vista: productos ----------
 
 function pintarProductos() {
   $('ajuste-ciegas').checked = ajustes.ciegas;
@@ -936,7 +1004,7 @@ function pintarProductos() {
     const esCong = tipo === 'congelado';
     const cab = esCong
       ? filaCab('Nombre', 'Formato', 'Se vende', 'Coste €', 'Venta €', 'Stock inicial', 'Stock ideal', '')
-      : filaCab('Nombre', 'Merma %', '');
+      : filaCab('Nombre', 'Limpieza %', 'Coste €/kg', '');
     const filas = lista.map((p) => {
       const campos = esCong
         ? `<input data-prod="formato" value="${escapar(p.formato || '')}" placeholder="bolsa 1 kg" aria-label="Formato">
@@ -948,10 +1016,10 @@ function pintarProductos() {
            <input class="num" inputmode="decimal" data-prod="pvp" value="${centATexto(p.pvp)}" placeholder="0,00" aria-label="Precio de venta">
            <input class="num" inputmode="${modoTeclado(p)}" data-prod="stockInicial" value="${numATexto(p.stockInicial)}" placeholder="0" aria-label="Stock inicial">
            <input class="num" inputmode="${modoTeclado(p)}" data-prod="stockIdeal" value="${numATexto(p.stockIdeal)}" placeholder="0" aria-label="Stock ideal">`
-        : `<input class="num" inputmode="decimal" data-prod="merma" value="${numATexto(p.merma || null)}" placeholder="0" aria-label="Merma">`;
+        : `<input class="num" inputmode="decimal" data-prod="merma" value="${numATexto(p.merma || null)}" placeholder="0" aria-label="Merma"><input class="num" inputmode="decimal" data-prod="coste" value="${centATexto(p.coste)}" placeholder="Pendiente" aria-label="Coste por kg">`;
       return `<div class="fila-prod" data-id="${p.id}">
         <input data-prod="nombre" value="${escapar(p.nombre)}" aria-label="Nombre">${campos}
-        <button type="button" class="btn-borrar" data-borrar="${p.id}" aria-label="Borrar ${escapar(p.nombre)}">✕</button>
+        <button type="button" class="btn-borrar" data-borrar="${p.id}" aria-label="Archivar ${escapar(p.nombre)}">✕</button>
       </div>`;
     }).join('');
     return `<section class="tarjeta">${cabeceraCategoria(tipo, `${lista.length} productos`)}
@@ -975,6 +1043,8 @@ function mostrarVista(nombre) {
 }
 
 function irAFecha(f) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+  intentoCierre = false;
   $('fecha').value = f;
   pasoActual = pasoSugerido(f);
   pintarDia();
@@ -1008,22 +1078,26 @@ $('buscar').addEventListener('input', aplicarBusqueda);
 $('vista-dia').addEventListener('input', (e) => {
   const i = e.target;
   const f = $('fecha').value;
+  if (dias[f]?.cerrado || bloqueoLectura) return;
   const { id } = i.dataset;
+  const leido = fn => i.value.trim() && fn(i.value) == null ? i.value.trim() : fn(i.value);
 
-  if (i.dataset.fresco) {
+  if (i.id === 'legado-parte') {
+    diaEditable(f).parteLegado = i.value.trim();
+  } else if (i.dataset.fresco) {
     const d = diaEditable(f);
     const r = (d.fresco[id] ||= {});
     const campo = i.dataset.fresco;
-    r[campo] = campo === 'pvp' ? aCentimos(i.value) : aKg(i.value);
+    r[campo] = leido(campo === 'pvp' ? aCentimos : aNumero);
     // Al poner kilos se fija el precio que se ve en pantalla para ese día
     if (campo === 'kg' && r.pvp == null) r.pvp = precio(f, id);
   } else if (i.dataset.congelado) {
     const d = diaEditable(f);
     const c = (d.congelado[id] ||= {});
-    c[i.dataset.congelado] = leerCant(producto(id), i.value);
+    c[i.dataset.congelado] = leido(i.dataset.congelado === 'pvp' ? aCentimos : aNumero);
   } else if (i.dataset.caja) {
     const d = diaEditable(f);
-    d.caja[i.dataset.caja] = i.dataset.caja === 'notas' ? i.value.trim() : aCentimos(i.value);
+    d.caja[i.dataset.caja] = i.dataset.caja === 'notas' ? i.value.trim() : leido(aCentimos);
   } else if (i.dataset.den) {
     const d = diaEditable(f);
     d.caja.desglose = leerDesglose();
@@ -1033,13 +1107,15 @@ $('vista-dia').addEventListener('input', (e) => {
   } else {
     return;
   }
+  fijarFichas(f);
   guardar();
+  if (intentoCierre) mostrarFaltas(false);
 });
 
 // Al terminar de escribir kilos o reposiciones se actualizan el cierre y los pasos
 $('vista-dia').addEventListener('change', (e) => {
   const i = e.target;
-  if (i.dataset.fresco === 'kg' || i.dataset.congelado === 'repuesto') {
+  if (i.dataset.fresco === 'kg' || ['repuesto','inicial'].includes(i.dataset.congelado)) {
     i.closest('.fila-prod')?.classList.toggle('con-dato', !!aNumero(i.value));
     actualizarConteos();
     pintarCierre();
@@ -1051,19 +1127,23 @@ $('vista-dia').addEventListener('click', (e) => {
   const f = $('fecha').value;
 
   if (e.target.id === 'reabrir') {
-    if (!confirm('¿Reabrir el cierre? Se podrán cambiar los recuentos y la caja.')) return;
-    delete dias[f].cerrado;
-    guardar();
+    if (bloqueoLectura || !dias[f]?.cerrado) return;
+    const motivo = prompt('Motivo de la corrección. Se conservarán los valores anteriores y los nuevos.');
+    if (!motivo?.trim()) return;
+    const antes = MotorCierre.copia(dias[f]);
+    MotorCierre.reabrir(dias[f], motivo, new Date().toISOString());
+    if (!guardar()) { dias[f] = antes; return; }
+    intentoCierre = false;
     pasoActual = 2;
     pintarDia();
     return;
   }
 
   const borrar = e.target.closest('[data-borrar-salida]');
-  if (borrar) {
+  if (borrar && !dias[f]?.cerrado && !bloqueoLectura) {
     dias[f].salidas.splice(+borrar.dataset.borrarSalida, 1);
     guardar();
-    pintarSalidas();
+    pintarCierre(); pintarPasos();
   }
 });
 
@@ -1078,6 +1158,7 @@ $('rapido-leer').addEventListener('click', () => {
 
 $('borrar-dia').addEventListener('click', () => {
   const f = $('fecha').value;
+  if (dias[f]?.cerrado || dias[f]?.correccion || bloqueoLectura) return;
   if (!dias[f]) {
     avisar('Este día no tiene nada apuntado.');
     return;
@@ -1107,39 +1188,79 @@ $('rapido').addEventListener('click', (e) => {
   if (e.target.id === 'rapido-cancelar') $('rapido-revision').innerHTML = '';
 });
 
+$('salida-tipo').addEventListener('change', configurarMovimiento);
+$('lote-producto').addEventListener('change', pintarLote);
+$('lote-guardar').addEventListener('click', () => {
+  const f = $('fecha').value, id = $('lote-producto').value;
+  if (!id || dias[f]?.cerrado || bloqueoLectura) return;
+  const campos = ['cajas','precio','netos','luque'].map(k => $('lote-' + k).value.trim());
+  const [cajas, precioCaja, kgNetos, kgLuque] = campos.map((v,i) => i === 1 ? aCentimos(v) : aNumero(v));
+  if (campos.some((v,i) => v && [cajas,precioCaja,kgNetos,kgLuque][i] == null)
+    || (cajas != null && (!Number.isSafeInteger(cajas) || cajas <= 0)) || (precioCaja != null && precioCaja < 0)
+    || (kgNetos != null && (!MotorCierre.cantidad(kgNetos,'kg') || kgNetos <= 0))
+    || (kgLuque != null && (!MotorCierre.cantidad(kgLuque,'kg') || (kgNetos != null && kgLuque > kgNetos)))) {
+    avisar('Revisa cajas, precio y kilos. Luque solo puede recibir hasta el peso neto del lote.'); return;
+  }
+  const d = diaEditable(f);
+  d.lotes ||= {};
+  if (campos.some(Boolean)) d.lotes[id] = { cajas, precioCaja, kgNetos, kgLuque }; else delete d.lotes[id];
+  fijarFichas(f);
+  if (guardar()) { pintarLote(); avisar('Lote guardado.'); }
+});
+$('sin-genero').addEventListener('change', e => {
+  const f = $('fecha').value;
+  if (dias[f]?.cerrado || bloqueoLectura) return;
+  if (e.target.checked && calcularDia(f).lineas.length) { e.target.checked = false; avisar('Hay existencias anotadas. Revisa el género.'); return; }
+  diaEditable(f).sinGenero = e.target.checked;
+  fijarFichas(f); guardar(); pintarPasos();
+});
 $('salida-anadir').addEventListener('click', () => {
   const f = $('fecha').value;
-  const p = producto($('salida-prod').value);
-  const cant = p && leerCant(p, $('salida-cant').value);
-  if (!p || !cant) {
-    avisar('Elige un producto y pon la cantidad.');
-    return;
-  }
-  diaEditable(f).salidas.push({
-    prod: p.id, tipo: $('salida-tipo').value, cant, motivo: $('salida-motivo').value.trim(), hora: horaActual(),
-  });
-  guardar();
-  $('salida-cant').value = '';
-  $('salida-motivo').value = '';
-  pintarSalidas();
-  avisar('Apuntado.');
+  if (dias[f]?.cerrado || bloqueoLectura) return;
+  const p = fichasDelDia(f).find(p => p.id === $('salida-prod').value);
+  const tipo = $('salida-tipo').value, cant = aNumero($('salida-cant').value), pvp = aCentimos($('mov-precio').value);
+  const hora = $('mov-hora').value, orden = aNumero($('mov-orden').value), destino = $('mov-destino').value.trim();
+  if (!p || !MotorCierre.cantidad(cant,p.unidad) || (tipo !== 'precio' && cant === 0)) { avisar('Revisa la cantidad y su unidad.'); return; }
+  if (!MotorCierre.horaValida(hora) || !MotorCierre.validaOrden(orden)) { avisar('Indica la hora real y un orden del 1 al 99.'); return; }
+  if (tipo === 'precio' && (!MotorCierre.moneda(pvp) || !pvp)) { avisar('Indica el nuevo precio.'); return; }
+  if (tipo === 'traslado' && !destino) { avisar('Indica la tienda de destino.'); return; }
+  const d = diaEditable(f);
+  const m = { prod:p.id, tipo, cant, hora, orden, anotado:new Date().toISOString(), motivo:$('salida-motivo').value.trim() };
+  if (tipo === 'precio') m.pvp = pvp;
+  if (tipo === 'traslado') m.destino = destino;
+  d.salidas.push(m); fijarFichas(f);
+  $('salida-cant').value = ''; $('salida-motivo').value = ''; $('mov-precio').value = ''; $('mov-destino').value = '';
+  const guardado = guardar();
+  pintarCierre(); pintarPasos();
+  if (guardado) avisar('Movimiento guardado.');
 });
-
 $('terminar-cierre').addEventListener('click', () => {
   const f = $('fecha').value;
-  const caja = dias[f]?.caja || {};
-  const faltan = [];
-  if (!estadoDia(f).genero) faltan.push('no hay género apuntado');
-  if (caja.contado == null) faltan.push('falta el efectivo contado');
-  const texto = faltan.length
-    ? `Atención: ${faltan.join(' y ')}.\n\n¿Terminar el cierre igualmente?`
-    : 'Al terminar, los recuentos y la caja ya no se podrán cambiar. ¿Terminar el cierre?';
-  if (!confirm(texto)) return;
-  diaEditable(f).cerrado = { hora: horaActual() };
-  guardar();
-  pasoActual = 3;
-  pintarDia();
-  window.scrollTo(0, 0);
+  if (dias[f]?.cerrado || bloqueoLectura) return;
+  if (calcularDia(f).faltas.length) { mostrarFaltas(true); return; }
+  if (!confirm('¿Guardar los recuentos y cobros y terminar el cierre?')) return;
+  const d = diaEditable(f);
+  fijarFichas(f);
+  const antes = MotorCierre.copia(d);
+  try { MotorCierre.cerrar(d, fichasDelDia(f), new Date().toISOString(), horaActual()); }
+  catch { mostrarFaltas(true); return; }
+  if (!guardar()) { dias[f] = antes; return; }
+  intentoCierre = false; pasoActual = 3; pintarDia(); window.scrollTo(0, 0);
+});
+$('cuadre').addEventListener('click', e => {
+  if (e.target.id !== 'just-guardar' || bloqueoLectura) return;
+  const f = $('fecha').value, d = dias[f], r = calcularDia(f);
+  if (!d?.cerrado || !$('just-importe')) return;
+  const importe = aCentimos($('just-importe').value.replace('−','-')), comprobante = $('just-ref').value.trim();
+  try { MotorCierre.justificar(r.diferencia, d.justificaciones || [], importe, comprobante); }
+  catch (err) { avisar(err.message); return; }
+  (d.justificaciones ||= []).push({ importe, comprobante, fecha:new Date().toISOString() });
+  if (!guardar()) { d.justificaciones.pop(); return; }
+  pintarCuadre(); pintarPasos();
+});
+$('guardar-reintento').addEventListener('click', () => {
+  if (bloqueoLectura) { window.location.reload(); return; }
+  if (guardar()) { pintarDia(); avisar('Datos guardados.'); }
 });
 
 // ---------- Congelado, resumen y productos ----------
@@ -1192,7 +1313,7 @@ $('lista-productos').addEventListener('input', (e) => {
   const i = e.target;
   const campo = i.dataset.prod;
   const p = producto(i.closest('[data-id]')?.dataset.id);
-  if (!campo || !p) return;
+  if (!campo || !p || bloqueoLectura) return;
   if (campo === 'nombre' || campo === 'formato') p[campo] = i.value.trim();
   else if (campo === 'coste' || campo === 'pvp') p[campo] = aCentimos(i.value);
   else if (campo === 'merma') p.merma = aNumero(i.value) || 0;
@@ -1207,16 +1328,16 @@ $('lista-productos').addEventListener('input', (e) => {
 
 $('lista-productos').addEventListener('click', (e) => {
   const id = e.target.dataset.borrar;
-  if (!id) return;
+  if (!id || bloqueoLectura) return;
   const p = producto(id);
-  if (!confirm(`¿Borrar «${p.nombre}» del catálogo? Los días ya apuntados dejarán de contarlo.`)) return;
-  productos = productos.filter((x) => x.id !== id);
+  if (!confirm(`¿Archivar «${p.nombre}» para las próximas aperturas? Se conservarán sus cierres.`)) return;
+  p.archivado = true;
   guardar();
   pintarProductos();
 });
 
 $('exportar').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ productos, dias, ajustes }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version:3, productos, dias, ajustes }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `caja-luque-${hoyISO()}.json`;
@@ -1228,13 +1349,20 @@ $('importar').addEventListener('change', async (e) => {
   const archivo = e.target.files[0];
   if (!archivo) return;
   try {
-    const datos = JSON.parse(await archivo.text());
-    if (!Array.isArray(datos.productos) || typeof datos.dias !== 'object') throw new Error();
-    if (!confirm('Esto sustituirá los productos y los días actuales por los de la copia. ¿Continuar?')) return;
-    productos = datos.productos;
-    dias = datos.dias;
-    if (datos.ajustes) ajustes = { ...ajustes, ...datos.ajustes };
-    guardar();
+    const datos = MotorCierre.validarCopia(JSON.parse(await archivo.text()));
+    if (!confirm('Restaurar esta copia en este dispositivo sustituirá sus jornadas y catálogo. ¿Continuar?')) return;
+    const anterior = { productos, dias, ajustes, bloqueoLectura, versionLeida };
+    productos = datos.productos; dias = datos.dias; ajustes = { ciegas:true, teclado:'auto', ...datos.ajustes };
+    try {
+      materializarAntiguos();
+      // Una restauración explícita también permite recuperar un almacenamiento previo ilegible.
+      versionLeida = localStorage.getItem(CLAVE_ESTADO); bloqueoLectura = false;
+      if (!guardar()) throw new Error('guardado');
+    } catch (error) {
+      ({ productos, dias, ajustes, bloqueoLectura, versionLeida } = anterior);
+      if (error.message === 'guardado') return;
+      throw error;
+    }
     pintarProductos();
     avisar('Copia restaurada.');
   } catch {
@@ -1286,6 +1414,7 @@ function cerrarTeclado() {
   document.body.classList.remove('con-teclado');
 }
 
+window.addEventListener('beforeunload', e => { if (errorGuardado) { e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('focusin', (e) => {
   const i = e.target;
   if (i instanceof HTMLInputElement && i.classList.contains('num') && !i.disabled && tecladoActivo()) abrirTeclado(i);
@@ -1328,11 +1457,16 @@ $('teclado').addEventListener('click', (e) => {
 construirDesglose();
 $('fecha').value = hoyISO();
 $('mes').value = hoyISO().slice(0, 7);
+materializarAntiguos();
 pasoActual = pasoSugerido(hoyISO());
-guardar();
+if (!bloqueoLectura) guardar();
 mostrarVista('inicio');
 
 // Instalable en el móvil y usable sin conexión
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+if (PILOTO) {
+  $('estado-offline').textContent = 'Piloto de Luque · archivo completo para usar sin conexión. Los cierres se guardan en este navegador.';
+} else if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => {
+    $('estado-offline').textContent = 'Disponible sin conexión en este dispositivo.';
+  }).catch(() => { $('estado-offline').textContent = 'Aún no se ha preparado el uso sin conexión. Abre la app de nuevo con cobertura.'; });
 }
