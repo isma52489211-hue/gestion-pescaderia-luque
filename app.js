@@ -151,10 +151,6 @@ const inicial = cargar();
 let productos = inicial.productos, dias = inicial.dias;
 let ajustes = { ciegas: true, teclado: 'auto', ...inicial.ajustes };
 
-// Cada producto tiene un número fijo, el mismo que sale en la plantilla impresa
-const siguienteCodigo = () => Math.max(0, ...productos.map((p) => p.codigo || 0)) + 1;
-for (const p of productos) if (!p.codigo) p.codigo = siguienteCodigo();
-
 function guardar() {
   if (bloqueoLectura) return false;
   try {
@@ -267,7 +263,7 @@ function materializarAntiguos() {
     if (!d.cerrado || d.cerrado.informe) continue;
     const informe = MotorCierre.calcular(d, fichasDelDia(f));
     informe.legado = true;
-    informe.faltas.unshift('Cierre antiguo sin foto de precios, costes, unidades y limpieza. Los kilos y cobros anotados se conservan; el previsto histórico no es verificable.');
+    informe.faltas.unshift('Cierre antiguo sin registro de precios, costes, unidades y limpieza. Los kilos y cobros anotados se conservan; el previsto histórico no es verificable.');
     informe.teorico = null; informe.diferencia = null;
     d.cerrado.informe = informe;
   }
@@ -487,7 +483,7 @@ function pintarGenero() {
   $('cong-apertura').hidden = !cong.length;
   $('lote-producto').innerHTML = fichasDelDia(f).filter(p => p.tipo !== 'congelado').map(p => `<option value="${p.id}">${escapar(p.nombre)}</option>`).join('');
   pintarLote();
-  document.querySelectorAll('#panel-1 input:not([type=search]), #panel-1 textarea, #panel-1 select, #rapido button:not(#imprimir-plantilla), #lote-guardar, #borrar-dia').forEach(el => { el.disabled = !!d.cerrado; });
+  document.querySelectorAll('#panel-1 input:not([type=search]), #panel-1 textarea, #panel-1 select, #rapido button, #lote-guardar, #borrar-dia').forEach(el => { el.disabled = !!d.cerrado; });
   if (d.correccion) $('borrar-dia').disabled = true;
   aplicarBusqueda();
 }
@@ -680,66 +676,33 @@ function escribirDesglose(d) {
   $('desglose').open = Object.keys(d).length > 0;
 }
 
-// ---------- Plantilla imprimible ----------
-
-// El diseño (posición de cada casilla) lo comparten la hoja impresa y el lector de fotos (lector.js)
-const disenoActual = () => disenoPlantilla(productos.filter(p => !p.archivado), TIPOS);
-
-function construirPlantilla() {
-  const d = disenoActual();
-  if (d.desbordado) avisar('Hay demasiados productos para una hoja: algunos no caben en la plantilla.');
-  $('plantilla').innerHTML = svgPlantilla(d);
-}
-
-// Foto de la plantilla → números leídos → misma revisión que la lista pegada
-async function leerFoto(archivo) {
-  const estado = $('foto-estado');
-  estado.textContent = 'Leyendo la foto… (unos segundos)';
-  $('rapido-revision').innerHTML = '';
-  try {
-    const leidos = await leerFotoPlantilla(archivo, disenoActual());
-    const porProducto = new Map();
-    let fondo = null;
-    for (const r of leidos) {
-      const dudosa = r.confianza < 0.95;
-      if (r.id === '__fondo') {
-        fondo = { valor: Math.round(r.valor * 100), recorte: r.recorte, duda: dudosa };
-        continue;
-      }
-      const p = producto(r.id);
-      if (!p) continue;
-      const x = porProducto.get(p.id) || { p, kg: null, pvp: null, repuesto: null, recortes: {}, dudas: {} };
-      x[r.campo] = r.campo === 'pvp' ? Math.round(r.valor * 100) : r.valor;
-      x.recortes[r.campo] = r.recorte;
-      x.dudas[r.campo] = dudosa;
-      porProducto.set(p.id, x);
-    }
-    estado.textContent = '';
-    pintarRevision({ filas: [...porProducto.values()], sueltas: [], fondo, deFoto: true });
-  } catch (e) {
-    estado.textContent = '';
-    $('rapido-revision').innerHTML = `<div class="aviso">${ICONO.alerta}<div><strong>No he podido leer la foto</strong>
-      <p>${escapar(e.message || 'Inténtalo de nuevo con otra foto.')}</p></div></div>`;
-  }
-}
-
-// ---------- Rellenar rápido: leer una lista pegada, dictada o copiada de una foto ----------
+// ---------- Dictado y pegado de género ----------
 
 const VACIAS = new Set([
   'de', 'del', 'a', 'al', 'el', 'la', 'los', 'las', 'kg', 'kgs', 'kilo', 'kilos', 'k', 'euro', 'euros', 'eur',
   'e', 'precio', 'y', 'x', 'por', 'cada', 'unidad', 'unidades', 'ud', 'uds', 'bolsa', 'bolsas', 'n', 'no', 'num',
 ]);
-const NUMEROS = { un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+const NUMEROS = {
+  cero: 0, un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9,
+  diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+  veinte: 20, veintiuno: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29,
+  treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90, cien: 100,
+};
+const numeroHablado = new RegExp('\\b(' + Object.keys(NUMEROS).join('|') + ')\\b', 'g');
 
 function trocear(texto) {
   const t = normalizar(texto)
-    .replace(/\b(un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/g, (m) => NUMEROS[m])
-    .replace(/(\d+)\s+(?:con|coma)\s+(\d+)/g, '$1,$2')
-    .replace(/(\d+)\s+y\s+medio\b/g, '$1,5')
-    .replace(/(\d+)\s+y\s+cuarto\b/g, '$1,25')
-    .replace(/\bmedio\s+kilo\b/g, '0,5');
-  return [...t.matchAll(/\d+(?:[.,]\d+)?|[a-z]+/g)]
-    .map(([m]) => (/\d/.test(m) ? { num: Number(m.replace(',', '.')) } : { palabra: m }))
+    .replace(/\b(treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa) y (uno|un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)\b/g,
+      (_, decena, unidad) => NUMEROS[decena] + NUMEROS[unidad])
+    .replace(numeroHablado, (m) => NUMEROS[m])
+    .replace(/(\d+)\s+(?:(?:euros?|kilos?)\s+)?(?:con|coma)\s+(\d+)(?:\s+(centimos?))?/g,
+      (_, entero, decimal, centimos) => entero + ',' + (centimos ? decimal.padStart(2, '0') : decimal))
+    .replace(/(\d+)\s+(?:kilos?\s+)?y\s+medio\b/g, '$1,5')
+    .replace(/(\d+)\s+(?:kilos?\s+)?y\s+cuarto\b/g, '$1,25')
+    .replace(/\bmedio\s+kilo\b/g, '0,5')
+    .replace(/\bmenos\s+(?=\d)/g, '-');
+  return [...t.matchAll(/[−-]?\d+(?:[.,]\d+)?|[a-z]+/g)]
+    .map(([m]) => (/\d/.test(m) ? { num: Number(m.replace('−', '-').replace(',', '.')) } : { palabra: m }))
     .filter((x) => x.num != null || !VACIAS.has(x.palabra));
 }
 
@@ -775,20 +738,11 @@ function leerLista(texto) {
   }
   cerrarSuelta();
 
-  // Si el texto viene de la plantilla, cada nombre lleva su número de producto delante o detrás
-  // (según cómo lo copie Google Lens): ese número no son kilos y se descarta
-  const mayoria = (n) => n >= Math.max(3, marcas.length * 0.7);
-  const codigoDelante = mayoria(marcas.filter((m) => T[m.ini - 1]?.num === m.p.codigo).length);
-  const codigoDetras = mayoria(marcas.filter((m) => T[m.fin]?.num === m.p.codigo).length);
-
   const filas = new Map();
   marcas.forEach((m, k) => {
-    const sig = marcas[k + 1];
-    let desde = m.fin;
-    let hasta = sig ? sig.ini : T.length;
-    if (codigoDetras && T[desde]?.num === m.p.codigo) desde++;
-    if (codigoDelante && sig && T[sig.ini - 1]?.num === sig.p.codigo) hasta = sig.ini - 1;
-    const nums = T.slice(desde, Math.max(desde, hasta)).filter((x) => x.num != null).map((x) => x.num);
+    const tramo = T.slice(m.fin, marcas[k + 1]?.ini ?? T.length);
+    const palabraSinReconocer = tramo.findIndex(x => x.palabra);
+    const nums = (palabraSinReconocer < 0 ? tramo : tramo.slice(0, palabraSinReconocer)).map(x => x.num);
     const cong = m.p.tipo === 'congelado';
     filas.set(m.p.id, {
       p: m.p,
@@ -805,36 +759,29 @@ function leerLista(texto) {
 function pintarRevision(res) {
   const f = $('fecha').value;
   const d = dias[f] || { fresco: {}, congelado: {} };
-  if (!res.filas.length && !res.fondo) {
-    $('rapido-revision').innerHTML = res.deFoto
-      ? `<div class="aviso">${ICONO.alerta}<div><strong>No he encontrado números en la plantilla</strong>
-        <p>Comprueba que la foto es de la plantilla rellena, con buena luz y sin sombras fuertes.</p></div></div>`
-      : `<div class="aviso">${ICONO.alerta}<div><strong>No he reconocido ningún producto</strong>
-        <p>Escribe el nombre como está en la lista de productos, seguido de los kilos y el precio.</p></div></div>`;
+  if (!res.filas.length) {
+    $('rapido-revision').innerHTML = `<div class="aviso">${ICONO.alerta}<div><strong>No he reconocido productos con cantidades</strong>
+      <p>Incluye el nombre del catálogo seguido de los kilos.</p></div></div>`;
     return;
   }
 
-  // Casilla de revisión: el número leído y, si viene de una foto, el recorte de lo escrito
-  const celda = (x, campo, texto, modo, etiqueta) => {
-    const recorte = x.recortes?.[campo];
-    return `<span class="celda-rev${x.dudas?.[campo] ? ' duda' : ''}">
-      ${recorte ? `<img src="${recorte}" alt="Lo escrito en ${etiqueta}">` : ''}
-      <input type="text" class="num" inputmode="${modo}" data-campo="${campo}" data-etiqueta="${etiqueta}" value="${texto}" placeholder="${etiqueta}">
-    </span>`;
-  };
-  const algunaDuda = (x) => Object.values(x.dudas || {}).some(Boolean);
+  const celda = (campo, texto, modo, etiqueta) => `<span class="celda-rev">
+    <input type="text" class="num" inputmode="${modo}" data-campo="${campo}" aria-label="${etiqueta}" data-etiqueta="${etiqueta}" value="${texto}" placeholder="${etiqueta}">
+  </span>`;
 
   const filas = res.filas.map((x) => {
     const notas = [];
     const p = x.p;
-    if (algunaDuda(x)) notas.push('letra dudosa: compara con lo escrito');
+    if (x.repetido) notas.push('aparece dos veces');
+    if (x.sobran) notas.push('había números de más');
+    const ambigua = x.repetido || x.sobran;
     if (p.tipo === 'congelado') {
       const antes = d.congelado?.[p.id]?.repuesto;
       if (antes != null && antes !== x.repuesto) notas.push(`antes ${numATexto(antes)}`);
-      return `<div class="fila-prod rev${algunaDuda(x) ? ' dudosa' : ''}" data-rev="${p.id}">
-        <input type="checkbox" checked aria-label="Pasar ${escapar(p.nombre)}">
+      return `<div class="fila-prod rev${ambigua || x.repuesto < 0 ? ' dudosa' : ''}" data-rev="${p.id}">
+        <input type="checkbox" ${!ambigua && x.repuesto != null && x.repuesto >= 0 ? 'checked' : ''} aria-label="Pasar ${escapar(p.nombre)}">
         <span class="nombre-prod">${escapar(p.nombre)}<small class="nota">Repongo${notas.length ? ' · ' + notas.join(' · ') : ''}</small></span>
-        ${celda(x, 'repuesto', numATexto(x.repuesto), modoTeclado(p), 'repongo')}
+        ${celda('repuesto', numATexto(x.repuesto), modoTeclado(p), 'repongo')}
         <span></span>
       </div>`;
     }
@@ -848,35 +795,26 @@ function pintarRevision(res) {
     const raro = (x.kg != null && x.kg > 60) || (pvp != null && (pvp < 100 || pvp > 6000))
       || (x.pvp != null && anterior && Math.abs(x.pvp - anterior) / anterior > 0.4);
     if (raro) notas.push('revisa este número');
-    if (x.repetido) notas.push('aparece dos veces');
-    if (x.sobran) notas.push('había números de más');
-    return `<div class="fila-prod rev${raro || x.kg == null || algunaDuda(x) ? ' dudosa' : ''}" data-rev="${p.id}">
-      <input type="checkbox" ${x.kg != null ? 'checked' : ''} aria-label="Pasar ${escapar(p.nombre)}">
+    return `<div class="fila-prod rev${raro || x.kg == null || x.kg < 0 || ambigua ? ' dudosa' : ''}" data-rev="${p.id}">
+      <input type="checkbox" ${x.kg != null && x.kg >= 0 && !ambigua ? 'checked' : ''} aria-label="Pasar ${escapar(p.nombre)}">
       <span class="nombre-prod">${escapar(p.nombre)}${notas.length ? `<small class="nota">${notas.join(' · ')}</small>` : ''}</span>
-      ${celda(x, 'kg', numATexto(x.kg), 'decimal', 'kilos')}
-      ${celda(x, 'pvp', centATexto(pvp), 'decimal', '€/kg')}
+      ${celda('kg', numATexto(x.kg), 'decimal', 'kilos')}
+      ${celda('pvp', centATexto(pvp), 'decimal', '€/kg')}
     </div>`;
   }).join('');
 
-  const fondo = res.fondo
-    ? `<div class="fila-prod rev${res.fondo.duda ? ' dudosa' : ''}" data-fondo>
-        <input type="checkbox" checked aria-label="Pasar el fondo de caja">
-        <span class="nombre-prod">Fondo de caja${res.fondo.duda ? '<small class="nota">letra dudosa: compara con lo escrito</small>' : ''}</span>
-        <span></span>
-        ${celda({ recortes: { fondo: res.fondo.recorte }, dudas: { fondo: res.fondo.duda } }, 'fondo', centATexto(res.fondo.valor), 'decimal', '€')}
-      </div>`
+  const sinReconocer = [...res.sueltas, ...res.sinDatos.map(x => x.p.nombre + ' sin cantidad')];
+  const desconocidas = sinReconocer.length
+    ? `<div class="aviso">${ICONO.alerta}<div><strong>No reconozco</strong><p>${sinReconocer.map((s) => `«${escapar(s)}»`).join(', ')}</p></div></div>`
     : '';
 
-  const desconocidas = res.sueltas.length
-    ? `<div class="aviso">${ICONO.alerta}<div><strong>No reconozco</strong><p>${res.sueltas.map((s) => `«${escapar(s)}»`).join(', ')}</p></div></div>`
-    : '';
-
+  $('rapido-revision').dataset.fecha = f;
   $('rapido-revision').innerHTML = `<h3>Revisa antes de pasar al día</h3>
-    <p class="ayuda">${res.deFoto ? 'Encima de cada número tienes lo que escribiste. ' : ''}Comprueba los marcados en amarillo y quita la marca de lo que no quieras pasar.</p>
-    <div class="filas">${filaCab('', 'Producto', 'Kilos', '€/kg').replace('fila-prod cab', 'fila-prod cab rev')}${fondo}${filas}</div>
+    <p class="ayuda">Comprueba los marcados en amarillo y quita la marca de lo que no quieras pasar.</p>
+    <div class="filas">${filaCab('', 'Producto', 'Kilos', '€/kg').replace('fila-prod cab', 'fila-prod cab rev')}${filas}</div>
     ${desconocidas}
     <div class="botones">
-      <button type="button" class="btn primario" id="rapido-pasar">Pasar al día (${res.filas.filter((x) => x.kg != null || x.repuesto != null).length} productos)</button>
+      <button type="button" class="btn primario" id="rapido-pasar">Guardar selección</button>
       <button type="button" class="btn secundario" id="rapido-cancelar">Cancelar</button>
     </div>`;
 }
@@ -884,36 +822,48 @@ function pintarRevision(res) {
 function pasarRevision() {
   const f = $('fecha').value;
   if (dias[f]?.cerrado || bloqueoLectura) return;
+  if ($('rapido-revision').dataset.fecha !== f) {
+    avisar('Revisa la lista para el día que tienes abierto.');
+    return;
+  }
+  const seleccion = [...$('rapido-revision').querySelectorAll('[data-rev]')]
+    .filter(fila => fila.querySelector('input[type="checkbox"]').checked)
+    .map(fila => {
+      const p = producto(fila.dataset.rev);
+      const valor = campo => fila.querySelector(`[data-campo="${campo}"]`)?.value;
+      const congelado = p?.tipo === 'congelado';
+      return {
+        p, congelado,
+        cantidad: congelado ? leerCant(p, valor('repuesto')) : aKg(valor('kg')),
+        importe: congelado ? null : aCentimos(valor('pvp')),
+        precioEscrito: !congelado && !!valor('pvp')?.trim(),
+      };
+    });
+  if (!seleccion.length) {
+    avisar('Marca al menos un producto para guardarlo.');
+    return;
+  }
+  const invalido = seleccion.find(x => !x.p || x.p.archivado || x.cantidad == null || x.cantidad < 0
+    || (x.precioEscrito && (x.importe == null || x.importe <= 0)));
+  if (invalido) {
+    avisar(`Revisa la cantidad y el precio de ${invalido.p?.nombre ?? 'la selección'}.`);
+    return;
+  }
   const d = diaEditable(f);
-  let n = 0;
-  document.querySelectorAll('#rapido-revision [data-rev]').forEach((fila) => {
-    if (!fila.querySelector('input[type="checkbox"]').checked) return;
-    const p = producto(fila.dataset.rev);
-    const valor = (campo) => fila.querySelector(`[data-campo="${campo}"]`)?.value;
-    if (p.tipo === 'congelado') {
-      const rep = leerCant(p, valor('repuesto'));
-      if (rep == null) return;
-      (d.congelado[p.id] ||= {}).repuesto = rep;
-    } else {
-      const kg = aKg(valor('kg'));
-      if (kg == null) return;
+  for (const { p, congelado, cantidad, importe } of seleccion) {
+    if (congelado) (d.congelado[p.id] ||= {}).repuesto = cantidad;
+    else {
       const r = (d.fresco[p.id] ||= {});
-      r.kg = kg;
-      r.pvp = aCentimos(valor('pvp')) ?? precio(f, p.id);
+      r.kg = cantidad;
+      r.pvp = importe ?? precio(f, p.id);
     }
-    n++;
-  });
-  const fondo = document.querySelector('#rapido-revision [data-fondo]');
-  if (fondo?.querySelector('input[type="checkbox"]').checked) {
-    const v = aCentimos(fondo.querySelector('[data-campo="fondo"]').value);
-    if (v != null) d.caja.fondo = v;
   }
   fijarFichas(f);
   if (!guardar()) return;
   $('rapido-revision').innerHTML = '';
   $('rapido-texto').value = '';
   pintarDia();
-  avisar(`${n} productos pasados al día.`);
+  avisar(`${seleccion.length} productos guardados.`);
 }
 
 // ---------- Vista: congelado ----------
@@ -1147,6 +1097,8 @@ $('vista-dia').addEventListener('click', (e) => {
   }
 });
 
+$('rapido-texto').addEventListener('input', () => { $('rapido-revision').innerHTML = ''; });
+
 $('rapido-leer').addEventListener('click', () => {
   const texto = $('rapido-texto').value.trim();
   if (!texto) {
@@ -1170,17 +1122,6 @@ $('borrar-dia').addEventListener('click', () => {
   $('rapido-revision').innerHTML = '';
   pintarDia();
   avisar('Día borrado.');
-});
-
-$('foto-plantilla').addEventListener('change', (e) => {
-  const archivo = e.target.files[0];
-  e.target.value = '';
-  if (archivo) leerFoto(archivo);
-});
-
-$('imprimir-plantilla').addEventListener('click', () => {
-  construirPlantilla();
-  window.print();
 });
 
 $('rapido').addEventListener('click', (e) => {
@@ -1301,8 +1242,7 @@ $('form-producto').addEventListener('submit', (e) => {
   const tipo = $('nuevo-tipo').value;
   let id = (tipo === 'congelado' ? 'cong-' : '') + slug(nombre);
   while (producto(id)) id += '-2';
-  const codigo = siguienteCodigo();
-  productos.push(tipo === 'congelado' ? { id, codigo, nombre, tipo, unidad: 'ud' } : { id, codigo, nombre, tipo, merma: 0 });
+  productos.push(tipo === 'congelado' ? { id, nombre, tipo, unidad: 'ud' } : { id, nombre, tipo, merma: 0 });
   guardar();
   $('nuevo-nombre').value = '';
   pintarProductos();

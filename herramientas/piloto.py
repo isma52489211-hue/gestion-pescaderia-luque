@@ -22,10 +22,8 @@ def generar():
     html = re.sub(r'^.*<link[^\n]+(?:manifest|https://fonts\.)[^\n]*\n', '', html, flags=re.M)
     html = html.replace('<link rel="stylesheet" href="styles.css">', '<style>' + (RAIZ / "styles.css").read_text() + '</style>')
     iconos = {i.stem: recurso(i.relative_to(RAIZ)) for i in (RAIZ / "assets/iconos").glob("*.svg")}
-    for nombre in ("lector", "motor-cierre", "app"):
+    for nombre in ("motor-cierre", "app"):
         js = (RAIZ / (nombre + ".js")).read_text()
-        if nombre == "lector":
-            js = js.replace("await (await fetch('assets/lector-cifras.json')).json()", (RAIZ / "assets/lector-cifras.json").read_text().strip())
         if nombre == "app":
             js = 'const iconosPiloto = ' + json.dumps(iconos) + ';\n' + js
             js = js.replace('assets/iconos/${TIPOS[tipo].icono}.svg', '${iconosPiloto[TIPOS[tipo].icono]}')

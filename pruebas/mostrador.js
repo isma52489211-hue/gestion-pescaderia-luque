@@ -151,6 +151,25 @@ async function ejecutar() {
     paso(1);verificar(q('[data-fresco=kg]').disabled && q('#borrar-dia').disabled,'Apertura cerrada editable');
     paso(3);cajaVisible(24,24);
   });
+  await caso('Dictado · carga varias referencias, propone el último precio y avisa de ambigüedades', async () => {
+    await cargar(true, [fresco, { id:'dorada',nombre:'Dorada',tipo:'fresco',merma:0 }]);
+    paso(1);
+    poner('#rapido-texto','Boquerón de prueba cinco kilos a ocho euros con cincuenta. Dorada seis kilos a nueve con noventa y cinco.');
+    clic('#rapido-leer');
+    igual(q('[data-rev=boqueron] [data-campo=pvp]').value,'8,50');
+    igual(q('[data-rev=dorada] [data-campo=pvp]').value,'9,95');
+    clic('#rapido-pasar');
+    igual(q('[data-fresco=kg][data-id=boqueron]').value,'5');
+    poner('#fecha','2030-01-16'); paso(1);
+    poner('#rapido-texto','Dorada cuatro kilos Boquerón de prueba dos kilos Boquerón de prueba tres kilos');
+    clic('#rapido-leer');
+    igual(q('[data-rev=dorada] [data-campo=pvp]').value,'9,95');
+    verificar(!q('[data-rev=boqueron] input[type=checkbox]').checked,'Se marcó un duplicado para guardar');
+    clic('#rapido-pasar');
+    igual(q('[data-fresco=kg][data-id=dorada]').value,'4');
+    igual(q('[data-fresco=kg][data-id=boqueron]').value,'');
+    verificar(!q('input[type=file][accept*="image"]'),'Sigue presente la carga de fotos');
+  });
   document.querySelector('#estado').dataset.terminado=fallos?'error':'ok';document.querySelector('#ejecutar').disabled=false;
 }
 document.querySelector('#ejecutar').onclick=()=>ejecutar().catch(e=>{document.querySelector('#estado').textContent=e.message;document.querySelector('#estado').dataset.terminado='error';});

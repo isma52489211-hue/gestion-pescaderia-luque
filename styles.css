@@ -380,29 +380,9 @@ details#desglose { margin-bottom: 16px; }
 #rapido-revision .botones { margin-top: 16px; }
 @media (max-width: 420px) { .fila-prod.rev { grid-template-columns: 24px 1fr 80px 80px; gap: 6px; } }
 
-/* ---------- Revisión de la foto ---------- */
-
-.celda-rev { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.celda-rev { min-width: 0; }
 .celda-rev input { font-size: 16px; padding: 8px 6px; }
-.celda-rev img { width: 100%; height: auto; border: 1px solid var(--borde); border-radius: 4px; background: #fff; }
-.celda-rev.duda img { border: 2px solid var(--sobra); }
-.celda-rev.duda input { border-color: var(--sobra); outline: 2px solid var(--sobra); outline-offset: 0; }
 .fila-prod.rev { padding: 6px 0; }
-#foto-boton { cursor: pointer; }
-#foto-estado:empty { display: none; }
-#foto-estado { margin-top: 12px; font-weight: 900; color: var(--azul); }
-
-/* ---------- Plantilla imprimible ---------- */
-
-.plantilla { display: none; }
-
-@media print {
-  @page { size: A4; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  body > *:not(.plantilla) { display: none !important; }
-  .plantilla { display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .plantilla > svg { display: block; width: 210mm; height: 297mm; }
-}
 
 /* Revisión del cierre en el mostrador */
 .incidencias { margin: .45rem 0; padding-left: 1.3rem; }

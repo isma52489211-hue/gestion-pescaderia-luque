@@ -21,13 +21,7 @@ Aplicación web para controlar la caja de la tienda de Luque **a partir del gén
 
 ## Rellenar rápido (coste cero)
 
-- **Plantilla imprimible** (botón «Imprimir plantilla» en el paso 1): hoja A4 con todos los productos numerados, una casilla por cifra (la coma ya impresa) y cuatro marcas negras en las esquinas.
-- **Foto de la plantilla** («Subir foto de la plantilla»): la app lee los números escritos a mano **sin internet y sin coste**. Con las cuatro marcas endereza la foto, recorta cada casilla y una red neuronal propia reconoce la cifra. La revisión enseña, encima de cada número, el recorte de lo escrito y marca en amarillo las cifras dudosas.
-- **Lista pegada o dictada**: también se puede pegar o dictar («merluza 10 a 12,90, dorada 6 a 9,95»). La app reconoce los productos (singular o plural), los kilos y el precio.
-
-### El lector de cifras
-
-`assets/lector-cifras.json` es una red convolucional pequeña (conv 5×5 ×16 → conv 5×5 ×32 → 128 → 10, pesos int8, 109 KB) entrenada con las cifras manuscritas públicas de MNIST más variantes al estilo español (7 con rayita, 1 con palito). Acierta el 99,4 % de cifras de prueba que no vio al entrenar. `lector.js` contiene el diseño de la plantilla (compartido por la hoja impresa y la lectura), la detección de las marcas, la corrección de perspectiva y el cálculo de la red.
+En «Dictar o pegar género», usa el micrófono del teclado o pega una lista. Por ejemplo, «boquerón mediano cinco kilos a ocho con cincuenta, dorada seis kilos». Si falta el precio, la revisión propone el del último día cuando existe. Revisa las cantidades y los precios antes de guardar la selección. Los productos repetidos o con números de más requieren revisión manual.
 
 ## Cómo se revisa un cierre
 
@@ -43,7 +37,7 @@ El resumen mensual separa jornadas abiertas, cierres verificables y cierres anti
 
 ## Piloto de Luque
 
-Descarga [Luque_piloto.html](piloto/Luque_piloto.html) para abrir la candidata en Chrome. La rama también se puede servir como web estática o empaquetar en un único HTML con Python 3. El archivo lleva los recursos del lector de plantilla y usa almacenamiento separado para el piloto. Para recuperar jornadas entre cierres, usa el mismo archivo y navegador o restaura una copia exportada del piloto.
+Descarga [Luque_piloto.html](piloto/Luque_piloto.html) para abrir la candidata en Chrome. La rama también se puede servir como web estática o empaquetar en un único HTML con Python 3. El archivo incluye los recursos de la app y usa almacenamiento separado para el piloto. Para recuperar jornadas entre cierres, usa el mismo archivo y navegador o restaura una copia exportada del piloto.
 
 ```sh
 python3 herramientas/piloto.py Luque_piloto.html

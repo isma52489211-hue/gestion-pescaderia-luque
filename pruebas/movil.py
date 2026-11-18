@@ -20,7 +20,7 @@ class Silencioso(SimpleHTTPRequestHandler):
 def pruebas():
     with tempfile.TemporaryDirectory() as temporal, sync_playwright() as pw:
         raiz = Path(temporal)
-        for nombre in ("app.js", "index.html", "styles.css", "motor-cierre.js", "lector.js", "manifest.webmanifest", "sw.js"):
+        for nombre in ("app.js", "index.html", "styles.css", "motor-cierre.js", "manifest.webmanifest", "sw.js"):
             shutil.copy(RAIZ / nombre, raiz / nombre)
         for nombre in ("assets", "pruebas"):
             shutil.copytree(RAIZ / nombre, raiz / nombre)

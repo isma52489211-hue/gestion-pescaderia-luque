@@ -1,7 +1,7 @@
 // Una versión completa de la aplicación se instala junta; una actualización interrumpida deja disponible la anterior.
 const PREFIJO = 'caja-luque:' + self.registration.scope + ':';
-const CACHE = PREFIJO + 'v5-rc3';
-const ARCHIVOS = ['./','index.html','lector.js','motor-cierre.js','app.js','assets/lector-cifras.json','styles.css','manifest.webmanifest',
+const CACHE = PREFIJO + 'v5-rc4';
+const ARCHIVOS = ['./','index.html','motor-cierre.js','app.js','styles.css','manifest.webmanifest',
   'assets/logo-adolfo.png','assets/icono-192.png','assets/icono-512.png','assets/icono-apple.png','assets/iconos/frescura.svg','assets/iconos/preparacion.svg',
   'assets/iconos/calidad.svg','assets/iconos/frio.svg'];
 self.addEventListener('install', e => {
