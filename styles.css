@@ -380,26 +380,23 @@ details#desglose { margin-bottom: 16px; }
 #rapido-revision .botones { margin-top: 16px; }
 @media (max-width: 420px) { .fila-prod.rev { grid-template-columns: 24px 1fr 80px 80px; gap: 6px; } }
 
-/* ---------- Revisión de la foto ---------- */
-
-.celda-rev { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.celda-rev { min-width: 0; }
 .celda-rev input { font-size: 16px; padding: 8px 6px; }
-.celda-rev img { width: 100%; height: auto; border: 1px solid var(--borde); border-radius: 4px; background: #fff; }
-.celda-rev.duda img { border: 2px solid var(--sobra); }
-.celda-rev.duda input { border-color: var(--sobra); outline: 2px solid var(--sobra); outline-offset: 0; }
 .fila-prod.rev { padding: 6px 0; }
-#foto-boton { cursor: pointer; }
-#foto-estado:empty { display: none; }
-#foto-estado { margin-top: 12px; font-weight: 900; color: var(--azul); }
 
-/* ---------- Plantilla imprimible ---------- */
-
-.plantilla { display: none; }
-
-@media print {
-  @page { size: A4; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  body > *:not(.plantilla) { display: none !important; }
-  .plantilla { display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .plantilla > svg { display: block; width: 210mm; height: 297mm; }
-}
+/* Revisión del cierre en el mostrador */
+.incidencias { margin: .45rem 0; padding-left: 1.3rem; }
+.incidencias li { margin-bottom: .35rem; }
+.error-fijo, #faltas-cierre { border: 2px solid #a33c39; padding: .8rem; border-radius: .7rem; background: #fff7f4; color: #592522; }
+.error-fijo { position: sticky; top: 0; z-index: 25; }
+details.tarjeta > summary { cursor: pointer; font-weight: 700; }
+details.tarjeta[open] > summary { margin-bottom: .8rem; }
+.revision-cifras { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .6rem; margin: .7rem 0 1rem; }
+.revision-cifras .cifra { min-width: 0; }
+.revision-cifras strong { display: block; font-variant-numeric: tabular-nums; }
+#vista-dia [hidden], #guardado-error[hidden] { display: none !important; }
+#faltas-cierre { flex: 1 0 100%; }
+#panel-2 .acciones { flex-wrap: wrap; }
+.revision-registro { overflow-wrap: anywhere; }
+.revision-registro pre { white-space: pre-wrap; font-size: .82rem; }
+.productos:not(.f-cong) .fila-prod { grid-template-columns: minmax(72px,1fr) minmax(42px,.4fr) minmax(55px,.5fr) 36px; }

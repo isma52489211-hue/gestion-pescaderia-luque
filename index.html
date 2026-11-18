@@ -53,6 +53,9 @@
   </nav>
 
   <main>
+    <div id="guardado-error" class="tarjeta error-fijo" role="alert" hidden>
+      <strong id="guardado-mensaje"></strong> <button type="button" class="btn secundario" id="guardar-reintento">Reintentar</button>
+    </div>
     <!-- INICIO -->
     <section id="vista-inicio" class="vista">
       <p class="sobretitulo" id="inicio-fecha"></p>
@@ -61,7 +64,7 @@
       <div class="cifras" id="inicio-cifras"></div>
       <section class="tarjeta">
         <h2>Últimos 7 días</h2>
-        <p class="ayuda">Lo cobrado cada día. En gris claro, días sin caja apuntada (se muestra lo que debería haberse vendido).</p>
+        <p class="ayuda">Cobros de jornadas cerradas. Los días abiertos quedan pendientes.</p>
         <div id="inicio-grafico"></div>
       </section>
       <div id="inicio-avisos"></div>
@@ -99,26 +102,30 @@
           <button type="button" class="btn peligro" id="borrar-dia">Borrar este día</button>
         </section>
         <section class="tarjeta" id="rapido">
-          <h2>Rellenar rápido</h2>
-          <p class="ayuda">Rellena la plantilla impresa y súbele una foto: la app lee los números y te los enseña para revisarlos. Funciona sin internet.</p>
-          <div class="botones">
-            <label class="btn primario" id="foto-boton">Subir foto de la plantilla
-              <input type="file" id="foto-plantilla" accept="image/*" hidden>
-            </label>
-            <button type="button" class="btn secundario" id="imprimir-plantilla">Imprimir plantilla</button>
-          </div>
-          <p class="ayuda" id="foto-estado" role="status"></p>
-          <details class="otros">
-            <summary>O pega o dicta la lista</summary>
-            <p class="ayuda">Por ejemplo: «merluza 10 a 12,90, dorada 6 a 9,95».</p>
-            <label>Lista del día
-              <textarea id="rapido-texto" rows="4" placeholder="merluza 10 a 12,90&#10;dorada 6 a 9,95&#10;gamba pelada 3"></textarea>
-            </label>
-            <button type="button" class="btn secundario" id="rapido-leer">Leer lista</button>
-          </details>
+          <h2>Dictar o pegar género</h2>
+          <p class="ayuda">Toca el micrófono del teclado. Di producto, kilos y precio. Si el precio sigue igual, basta con decir los kilos.</p>
+          <label>Lista del día
+            <textarea id="rapido-texto" rows="3" placeholder="Boquerón mediano 5 kilos a 8 con cincuenta&#10;Dorada 6 kilos"></textarea>
+          </label>
+          <button type="button" class="btn primario" id="rapido-leer">Revisar lista</button>
           <div id="rapido-revision"></div>
         </section>
         <div id="genero"></div>
+        <details id="cong-apertura" class="tarjeta"></details>
+        <details class="tarjeta">
+          <summary>Coste de compra por lote</summary>
+          <p class="ayuda">Para una compra por cajas, pesa todo el lote sin envases y apunta cuánto se destinó a Luque. El género de apertura se registra arriba.</p>
+          <div class="rejilla">
+            <label>Producto <select id="lote-producto"></select></label>
+            <label>Cajas compradas <input id="lote-cajas" inputmode="numeric"></label>
+            <label>€/caja sin IVA <input id="lote-precio" inputmode="decimal"></label>
+            <label>Kg netos del lote completo <input id="lote-netos" inputmode="decimal"></label>
+            <label>Kg recibidos en Luque <input id="lote-luque" inputmode="decimal"></label>
+          </div>
+          <button type="button" id="lote-guardar" class="btn secundario">Guardar lote del producto</button>
+          <p id="lote-estado" class="ayuda" role="status"></p>
+        </details>
+        <label class="ayuda"><input id="sin-genero" type="checkbox"> Hoy no hubo género en la tienda</label>
         <div class="acciones">
           <button class="btn primario" data-ir-vista="dia" data-ir-paso="2">Siguiente: cierre</button>
         </div>
@@ -130,35 +137,34 @@
         <fieldset id="cierre-form" class="sin-marco">
           <section class="tarjeta">
             <h2>Pescado y marisco que sobra</h2>
-            <p class="ayuda">Pesa lo que queda de cada producto. Si se ha vendido todo, déjalo vacío.</p>
+            <p class="ayuda">Pesa lo que queda de cada producto. Escribe 0 si se ha agotado. Una casilla vacía queda pendiente.</p>
             <div class="filas" id="cierre-fresco"></div>
           </section>
           <section class="tarjeta">
             <h2>Congelado que queda</h2>
-            <p class="ayuda">Cuenta las bolsas (o pesa, si va a granel). Si no se ha vendido nada, déjalo vacío.</p>
+            <p class="ayuda">Cuenta las bolsas (o pesa, si va a granel). Anota también las existencias que siguen intactas.</p>
             <div class="filas" id="cierre-congelado"></div>
           </section>
-          <section class="tarjeta">
-            <h2>Retiradas y mermas</h2>
-            <p class="ayuda">Género que sale sin venderse: lo que se lleva Ismael o lo que se tira o se regala. Así no cuenta como venta.</p>
+          <details class="tarjeta" id="movimientos">
+            <summary>Movimientos y cambios de precio</summary>
             <div class="rejilla">
               <label>Producto <select id="salida-prod"></select></label>
-              <label>Qué ha pasado
-                <select id="salida-tipo">
-                  <option value="retirada">Retirada (se lo lleva Ismael)</option>
-                  <option value="merma">Merma (se tira o se regala)</option>
-                </select>
-              </label>
-              <label>Cantidad (kg o unidades)
-                <input type="text" class="num" inputmode="decimal" id="salida-cant" placeholder="0">
-              </label>
-              <label>Motivo
-                <input type="text" id="salida-motivo" placeholder="Opcional">
-              </label>
+              <label>Movimiento <select id="salida-tipo">
+                <option value="merma">Pescado que se tira</option><option value="traslado">Traslado a otra tienda</option>
+                <option value="precio">Cambio de PVP</option><option value="entrada">Entrada de género durante el día</option>
+                <option value="retirada">Otra salida sin venta</option>
+              </select></label>
+              <label><span id="mov-etiqueta">Cantidad</span><input type="text" inputmode="decimal" id="salida-cant"></label>
+              <label id="mov-precio-label" hidden>Nuevo PVP (€ por kg o unidad)<input id="mov-precio" inputmode="decimal"></label>
+              <label id="mov-destino-label" hidden>Tienda de destino<input id="mov-destino" placeholder="Ej. Baena"></label>
+              <label>Hora real <input type="time" id="mov-hora"></label>
+              <label>Orden dentro del minuto <input id="mov-orden" type="number" inputmode="numeric" min="1" max="99" value="1"></label>
+              <label>Nota <input type="text" id="salida-motivo" placeholder="Opcional"></label>
             </div>
-            <button type="button" class="btn secundario" id="salida-anadir">Añadir</button>
+            <p class="ayuda">Si coinciden con un cambio de precio, apunta 1 para lo que pasó primero, 2 para lo siguiente. El peso al cambiar de precio es lo que quedaba justo entonces.</p>
+            <button type="button" class="btn secundario" id="salida-anadir">Añadir movimiento</button>
             <div id="lista-salidas" class="lista-salidas"></div>
-          </section>
+          </details>
           <section class="tarjeta">
             <h2>Caja</h2>
             <div class="rejilla">
@@ -178,6 +184,12 @@
                 <input type="text" class="num" inputmode="decimal" data-caja="fondoManana" placeholder="0,00">
               </label>
             </div>
+            <details><summary>Otros movimientos de efectivo</summary>
+              <p class="ayuda">Para efectivo que entró o salió antes del recuento. Registra cada movimiento una sola vez. Los gastos ya tienen su casilla y el fondo de mañana se aparta después de contar.</p>
+              <div class="rejilla">
+                <label>Dinero añadido al cajón, aparte del fondo (€)<input data-caja="ingresos" inputmode="decimal"></label>
+                <label>Dinero retirado antes de contar, aparte de gastos (€)<input data-caja="retiradas" inputmode="decimal"></label>
+              </div></details>
             <details id="desglose">
               <summary>Contar el efectivo por billetes y monedas</summary>
               <div id="desglose-filas" class="desglose"></div>
@@ -188,6 +200,9 @@
             </label>
           </section>
           <div class="acciones">
+            <label id="legado-comprobacion" hidden>Parte, ticket o referencia con que has verificado el género, unidades, precios y limpieza de este cierre antiguo
+              <input id="legado-parte" type="text"></label>
+            <div id="faltas-cierre" role="alert" tabindex="-1" hidden></div>
             <button type="button" class="btn primario" id="terminar-cierre">Terminar cierre</button>
           </div>
         </fieldset>
@@ -228,7 +243,7 @@
         <h2>Días</h2>
         <div class="tabla-envoltorio">
           <table class="tabla">
-            <thead><tr><th>Día</th><th>Según género</th><th>Cobrado</th><th>Diferencia</th></tr></thead>
+            <thead><tr><th>Día</th><th>Según género</th><th>Cobrado</th><th>Revisión</th></tr></thead>
             <tbody id="tabla-dias"></tbody>
           </table>
         </div>
@@ -289,6 +304,7 @@
         </div>
       </section>
     </section>
+    <p class="ayuda" id="estado-offline" role="status"></p>
   </main>
 
   <!-- Teclado numérico para el mostrador -->
@@ -315,10 +331,7 @@
 
   <div id="aviso" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- Plantilla del género para imprimir (solo se ve al imprimir) -->
-  <div id="plantilla" class="plantilla"></div>
-
-  <script src="lector.js"></script>
+  <script src="motor-cierre.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

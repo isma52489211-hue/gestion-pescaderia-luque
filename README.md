@@ -16,27 +16,38 @@ Aplicación web para controlar la caja de la tienda de Luque **a partir del gén
 ## Control
 
 - **Cierre a ciegas** (activado por defecto): al cerrar no se ven los kilos del inicio ni lo que debería haber, y el cuadre solo aparece tras terminar el cierre.
-- **Retiradas y mermas**: género que sale sin venderse (lo que se lleva Ismael, o lo que se tira o se regala); no cuenta como venta.
+- **Movimientos de género**: las salidas sin venta se registran con su tipo, cantidad, hora y, en los traslados, tienda de destino.
 - **Teclado del mostrador**: teclado numérico grande en pantalla para móvil y tablet.
 
 ## Rellenar rápido (coste cero)
 
-- **Plantilla imprimible** (botón «Imprimir plantilla» en el paso 1): hoja A4 con todos los productos numerados, una casilla por cifra (la coma ya impresa) y cuatro marcas negras en las esquinas.
-- **Foto de la plantilla** («Subir foto de la plantilla»): la app lee los números escritos a mano **sin internet y sin coste**. Con las cuatro marcas endereza la foto, recorta cada casilla y una red neuronal propia reconoce la cifra. La revisión enseña, encima de cada número, el recorte de lo escrito y marca en amarillo las cifras dudosas.
-- **Lista pegada o dictada**: también se puede pegar o dictar («merluza 10 a 12,90, dorada 6 a 9,95»). La app reconoce los productos (singular o plural), los kilos y el precio.
+En «Dictar o pegar género», usa el micrófono del teclado o pega una lista. Por ejemplo, «boquerón mediano cinco kilos a ocho con cincuenta, dorada seis kilos». Si falta el precio, la revisión propone el del último día cuando existe. Revisa las cantidades y los precios antes de guardar la selección. Los productos repetidos o con números de más requieren revisión manual.
 
-### El lector de cifras
+## Cómo se revisa un cierre
 
-`assets/lector-cifras.json` es una red convolucional pequeña (conv 5×5 ×16 → conv 5×5 ×32 → 128 → 10, pesos int8, 109 KB) entrenada con las cifras manuscritas públicas de MNIST más variantes al estilo español (7 con rayita, 1 con palito). Acierta el 99,4 % de cifras de prueba que no vio al entrenar. `lector.js` contiene el diseño de la plantilla (compartido por la hoja impresa y la lectura), la detección de las marcas, la corrección de perspectiva y el cálculo de la red.
+En **Día → Género** se anota el fondo y el género de apertura. **Coste de compra por lote** admite cajas y precio por caja, peso neto total y kilos recibidos en Luque. El último dato permite asignar el coste de la compra a la tienda. El margen puede quedar pendiente con la caja completa.
 
-## Cálculos
+En **Cierre**, cada referencia activa necesita un recuento final. Escribir 0 confirma que está agotada. **Movimientos y cambios de precio** registra entradas, pescado tirado, traslados con destino y cambios de PVP. Al cambiar de precio se pesa lo que queda. La hora y el orden dentro del minuto sitúan cada movimiento en el tramo correcto, aunque se registre más tarde.
 
-- Fresco, gordo y marisco: `kilos inicio − sobra − retiradas/mermas = vendido`, menos el % de merma del producto si la tiene (salmón, atún).
-- Congelado: `stock + repuesto − quedan − retiradas/mermas = vendido`, por unidades o a granel.
-- Caja: `efectivo contado − fondo + gastos + tarjeta + Bizum = cobrado`.
+El efectivo de ventas es el cajón contado menos el fondo inicial, más gastos y retiradas previas, menos entradas de dinero ajenas a ventas. Se suman tarjeta y Bizum. El fondo que se aparta para mañana se informa por separado.
 
-## Cómo usarla
+**Cuadre** muestra previsto, cobrado, diferencia inicial y cantidad sin explicar. Un cierre completo se puede guardar con una diferencia. Una justificación requiere importe firmado y referencia al comprobante. Para corregir kilos, precios o caja se reabre el día con un motivo. Se conserva un registro con los valores antes y después.
 
-**En el móvil, la tablet o el ordenador:** https://isma52489211-hue.github.io/gestion-pescaderia-luque/
+El resumen mensual separa jornadas abiertas, cierres verificables y cierres antiguos que carecen de los datos necesarios para reconstruir su previsto. Los datos se guardan en este dispositivo. Se pueden trasladar a otro con **Productos → Descargar copia / Restaurar copia**.
 
-También se puede abrir `index.html` directamente. De momento los datos se guardan en cada dispositivo (no se comparten entre aparatos).
+## Piloto de Luque
+
+Descarga [Luque_piloto.html](piloto/Luque_piloto.html) para abrir la candidata en Chrome. La rama también se puede servir como web estática o empaquetar en un único HTML con Python 3. El archivo incluye los recursos de la app y usa almacenamiento separado para el piloto. Para recuperar jornadas entre cierres, usa el mismo archivo y navegador o restaura una copia exportada del piloto.
+
+```sh
+python3 herramientas/piloto.py Luque_piloto.html
+```
+
+Para repetir las comprobaciones con datos simulados:
+
+```sh
+node --test pruebas/cierre.test.cjs
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Abre `http://127.0.0.1:8000/pruebas/mostrador.html` y pulsa **Ejecutar pruebas**. Muestra los resultados de cada recorrido en una ventana de 390 px. Las pruebas aíslan su almacenamiento del catálogo y las jornadas de la app. Para verificar además el modo sin red y el archivo portátil con Chromium, ejecuta `python pruebas/movil.py` con Playwright y Chrome o Chromium instalados.

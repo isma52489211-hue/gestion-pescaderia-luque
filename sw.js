@@ -1,54 +1,22 @@
-// Caja Luque — permite instalar la app y usarla sin conexión.
-// Primero intenta la red (para recibir siempre la última versión) y, si no hay, usa lo guardado.
-
-const CACHE = 'caja-luque-v4';
-const ARCHIVOS = [
-  './',
-  'index.html',
-  'lector.js',
-  'app.js',
-  'assets/lector-cifras.json',
-  'styles.css',
-  'manifest.webmanifest',
-  'assets/logo-adolfo.png',
-  'assets/icono-192.png',
-  'assets/icono-512.png',
-  'assets/iconos/frescura.svg',
-  'assets/iconos/preparacion.svg',
-  'assets/iconos/calidad.svg',
-  'assets/iconos/frio.svg',
-];
-
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+// Una versión completa de la aplicación se instala junta; una actualización interrumpida deja disponible la anterior.
+const PREFIJO = 'caja-luque:' + self.registration.scope + ':';
+const CACHE = PREFIJO + 'v5-rc4';
+const ARCHIVOS = ['./','index.html','motor-cierre.js','app.js','styles.css','manifest.webmanifest',
+  'assets/logo-adolfo.png','assets/icono-192.png','assets/icono-512.png','assets/icono-apple.png','assets/iconos/frescura.svg','assets/iconos/preparacion.svg',
+  'assets/iconos/calidad.svg','assets/iconos/frio.svg'];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS.map(path => new Request(new URL(path,self.registration.scope), {cache:'reload'})))));
 });
-
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((claves) => Promise.all(claves.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith(PREFIJO) && k !== CACHE).map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
 });
-
-self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  const url = new URL(e.request.url);
-  const propia = url.origin === self.location.origin;
-  const fuentes = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-  if (!propia && !fuentes) return;
-
-  // Los archivos propios se piden siempre comprobando si hay versión nueva (sin usar la copia de 10 minutos)
-  e.respondWith(
-    fetch(e.request, propia ? { cache: 'no-cache' } : undefined)
-      .then((r) => {
-        if (r.ok || r.type === 'opaque') {
-          const copia = r.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copia));
-        }
-        return r;
-      })
-      .catch(() => caches.match(e.request, { ignoreSearch: true })
-        .then((r) => r || (e.request.mode === 'navigate' ? caches.match('index.html') : undefined))),
-  );
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.registration.scope)) return;
+  e.respondWith(caches.open(CACHE).then(async c => {
+    const recurso = await c.match(e.request, {ignoreSearch:true});
+    if (recurso) return recurso;
+    try { return await fetch(e.request); }
+    catch (err) { if (e.request.mode === 'navigate') return await c.match(new URL('index.html',self.registration.scope)); throw err; }
+  }));
 });
