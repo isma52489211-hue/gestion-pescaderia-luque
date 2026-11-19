@@ -60,6 +60,7 @@ def pruebas():
                 pag.locator(f'[data-caja={k}]').fill(v)
             pag.on("dialog",lambda d:d.accept())
             pag.locator('#terminar-cierre').dispatch_event('click')
+            pag.locator('#cierre-confirmar').click()
             expect(pag.get_by_role("heading",name="Cuadra al céntimo")).to_be_visible()
             pag.reload(wait_until="domcontentloaded")
             expect(pag.locator('#inicio-estado')).to_contain_text('Cuadra al céntimo')

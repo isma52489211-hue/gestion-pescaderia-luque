@@ -590,7 +590,10 @@ function mostrarFaltas(intentar) {
   const r = calcularDia($('fecha').value), el = $('faltas-cierre');
   el.hidden = !!r.cerrado || !intentoCierre || !r.faltas.length;
   el.innerHTML = el.hidden ? '' : '<strong>Falta revisar</strong>' + problemas(r.faltas);
-  if (intentar && !el.hidden) el.focus();
+  if (intentar && !el.hidden) {
+    el.focus();
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
 }
 function pintarLote() {
   const id = $('lote-producto').value, lote = dias[$('fecha').value]?.lotes?.[id] || {};
@@ -680,7 +683,7 @@ function escribirDesglose(d) {
 
 const VACIAS = new Set([
   'de', 'del', 'a', 'al', 'el', 'la', 'los', 'las', 'kg', 'kgs', 'kilo', 'kilos', 'k', 'euro', 'euros', 'eur',
-  'e', 'precio', 'y', 'x', 'por', 'cada', 'unidad', 'unidades', 'ud', 'uds', 'bolsa', 'bolsas', 'n', 'no', 'num',
+  'e', 'precio', 'kilogramo', 'kilogramos', 'y', 'x', 'por', 'cada', 'unidad', 'unidades', 'ud', 'uds', 'bolsa', 'bolsas', 'n', 'no', 'num',
 ]);
 const NUMEROS = {
   cero: 0, un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9,
@@ -695,65 +698,115 @@ function trocear(texto) {
     .replace(/\b(treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa) y (uno|un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)\b/g,
       (_, decena, unidad) => NUMEROS[decena] + NUMEROS[unidad])
     .replace(numeroHablado, (m) => NUMEROS[m])
-    .replace(/(\d+)\s+(?:(?:euros?|kilos?)\s+)?(?:con|coma)\s+(\d+)(?:\s+(centimos?))?/g,
-      (_, entero, decimal, centimos) => entero + ',' + (centimos ? decimal.padStart(2, '0') : decimal))
-    .replace(/(\d+)\s+(?:kilos?\s+)?y\s+medio\b/g, '$1,5')
-    .replace(/(\d+)\s+(?:kilos?\s+)?y\s+cuarto\b/g, '$1,25')
-    .replace(/\bmedio\s+kilo\b/g, '0,5')
+    .replace(/(\d+)\s+(?:(euros?|kilos?)\s+)?(?:con|coma)\s+(\d+)(?:\s+(centimos?))?/g,
+      (_, entero, unidad, decimal, centimos) => entero + ',' + (centimos ? decimal.padStart(2, '0') : decimal) + (centimos ? ' euros' : unidad ? ' ' + unidad : ''))
+    .replace(/(\d+)\s+(?:kilos?\s+)?y\s+medio\b/g, '$1,5 kilos')
+    .replace(/(\d+)\s+(?:kilos?\s+)?y\s+cuarto\b/g, '$1,25 kilos')
+    .replace(/\bkilo\s+y\s+medio\b/g, '1,5 kilos')
+    .replace(/\bmedio\s+kilo\b/g, '0,5 kilos')
     .replace(/\bmenos\s+(?=\d)/g, '-');
-  return [...t.matchAll(/[−-]?\d+(?:[.,]\d+)?|[a-z]+/g)]
-    .map(([m]) => (/\d/.test(m) ? { num: Number(m.replace('−', '-').replace(',', '.')) } : { palabra: m }))
-    .filter((x) => x.num != null || !VACIAS.has(x.palabra));
+  const tokens = [...t.matchAll(/[−-]?\d+(?:[.,]\d+)?|[a-z]+|€/g)].map(([m]) => m);
+  return tokens.map((m, i) => {
+    if (!/\d/.test(m)) return { palabra: m };
+    const siguiente = tokens[i + 1];
+    const unidad = /^(kg|kgs|k|kilos?|kilogramos?|unidades?|uds?|bolsas?)$/.test(siguiente) ? 'cantidad'
+      : /^(euros?|eur|€)$/.test(siguiente) || tokens[i - 1] === 'a' ? 'precio' : null;
+    return { num: Number(m.replace('−', '-').replace(',', '.')), unidad,
+      antesDeProducto: unidad === 'cantidad' && tokens[i + 2] === 'de' };
+  }).filter(x => x.num != null || (x.palabra !== '€' && !VACIAS.has(x.palabra)));
 }
 
-// Singular y plural cuentan como la misma palabra (boquerón / boquerones)
+const VOCES_GENERO = {
+  gordo: 'grande', gorda: 'grande', gordos: 'grande', gordas: 'grande', grandes: 'grande',
+  pequena: 'chico', pequeno: 'chico', pequenas: 'chico', pequenos: 'chico',
+  chica: 'chico', chicas: 'chico', chicos: 'chico',
+  mediana: 'mediano', medianas: 'mediano', medianos: 'mediano',
+  bocaladillo: 'bacaladilla', bocaladillos: 'bacaladilla', bocalaillo: 'bacaladilla', bacalaillo: 'bacaladilla', bacalaito: 'bacaladilla', bacaladillo: 'bacaladilla', bacaladillos: 'bacaladilla',
+  hijota: 'pijota', hijotas: 'pijota',
+};
+const vozGenero = palabra => Object.hasOwn(VOCES_GENERO, palabra) ? VOCES_GENERO[palabra] : palabra;
 const mismaPalabra = (a, b) => a === b || a + 's' === b || b + 's' === a || a + 'es' === b || b + 'es' === a;
 
 function leerLista(texto) {
-  const T = trocear(texto);
   const candidatos = productos.filter(p => !p.archivado)
-    .map((p) => ({ p, palabras: trocear(p.nombre).map((x) => x.palabra).filter(Boolean) }))
-    .filter((c) => c.palabras.length)
+    .map(p => ({ p, palabras: trocear(p.nombre).map(x => x.palabra).filter(Boolean) }))
+    .filter(c => c.palabras.length)
     .sort((a, b) => b.palabras.length - a.palabras.length);
-
-  // Buscar los nombres de producto en el texto (primero los más largos: «sardinas chicas» antes que «sardinas»)
-  const marcas = [];
-  const sueltas = [];
-  let suelta = [];
-  const cerrarSuelta = () => { if (suelta.length) sueltas.push(suelta.join(' ')); suelta = []; };
-  for (let i = 0; i < T.length;) {
-    if (T[i].palabra) {
-      const c = candidatos.find((x) => x.palabras.every((w, k) => T[i + k]?.palabra && mismaPalabra(w, T[i + k].palabra)));
-      if (c) {
-        cerrarSuelta();
-        marcas.push({ p: c.p, ini: i, fin: i + c.palabras.length });
-        i += c.palabras.length;
-        continue;
-      }
-      suelta.push(T[i].palabra);
-    } else {
-      cerrarSuelta();
-    }
-    i++;
-  }
-  cerrarSuelta();
-
   const filas = new Map();
-  marcas.forEach((m, k) => {
-    const tramo = T.slice(m.fin, marcas[k + 1]?.ini ?? T.length);
-    const palabraSinReconocer = tramo.findIndex(x => x.palabra);
-    const nums = (palabraSinReconocer < 0 ? tramo : tramo.slice(0, palabraSinReconocer)).map(x => x.num);
-    const cong = m.p.tipo === 'congelado';
-    filas.set(m.p.id, {
-      p: m.p,
-      kg: cong ? null : nums[0] ?? null,
-      pvp: cong ? null : nums[1] != null ? Math.round(nums[1] * 100) : null,
-      repuesto: cong ? nums[0] ?? null : null,
-      sobran: nums.length > (cong ? 1 : 2),
-      repetido: filas.has(m.p.id),
+  const sueltas = [];
+
+  // Cada pausa escrita o «y después» permite empezar con otro orden.
+  for (const frase of texto.split(/\n|[;!?]|[.,](?!\d)|\b(?:y\s+)?(?:despu[eé]s|luego|a continuaci[oó]n)\b/iu)) {
+    const tokens = trocear(frase);
+    const marcas = [];
+    for (let i = 0; i < tokens.length;) {
+      const encajan = comparar => candidatos.filter(c => c.palabras.every((w, k) =>
+        tokens[i + k]?.palabra && comparar(w, tokens[i + k].palabra)));
+      const literales = encajan(mismaPalabra);
+      const coloquiales = encajan((a, b) => mismaPalabra(vozGenero(a), vozGenero(b)));
+      // En este catálogo la bacaladilla mediana es la referencia sin tamaño.
+      const bacaladilla = coloquiales.find(c => c.palabras.length === 1 && mismaPalabra(c.palabras[0], 'bacaladilla'));
+      const quitarMediano = bacaladilla && vozGenero(tokens[i + 1]?.palabra) === 'mediano'
+        && !coloquiales.some(c => c.palabras.length > 1);
+      const coinciden = quitarMediano ? [bacaladilla] : coloquiales;
+      const largo = quitarMediano ? 2 : coinciden[0]?.palabras.length;
+      const exacto = literales.find(c => c.palabras.length === largo);
+      const opciones = coinciden.filter(c => quitarMediano || c.palabras.length === largo);
+      const tallaSuelta = ['grande', 'mediano', 'chico'].includes(vozGenero(tokens[i + (largo ?? 0)]?.palabra));
+      const candidato = tallaSuelta ? null : exacto || (opciones.length === 1 ? opciones[0] : null);
+      if (candidato) {
+        marcas.push({ p: candidato.p, inicio: i, fin: i + largo });
+        i += largo;
+      } else {
+        if (tokens[i].palabra) sueltas.push(tokens[i].palabra);
+        i++;
+      }
+    }
+    const prefijo = tokens.slice(0, marcas[0]?.inicio ?? 0);
+    const cantidadPrimero = prefijo.some(x => x.num != null) && prefijo.every(x => x.num != null);
+    const entre = marcas.map((marca, i) => {
+      const tramo = tokens.slice(marcas[i - 1]?.fin ?? 0, marca.inicio);
+      if (!i) return { anterior: [], siguiente: tramo };
+      // «… a seis euros dos kilos de dorada …» reparte el hueco entre dos productos.
+      const ultimo = tramo.at(-1);
+      if (ultimo?.antesDeProducto) return { anterior: tramo.slice(0, -1), siguiente: [ultimo] };
+      return cantidadPrimero ? { anterior: [], siguiente: tramo } : { anterior: tramo, siguiente: [] };
     });
-  });
-  return { filas: [...filas.values()].filter((x) => x.kg != null || x.repuesto != null || x.pvp != null), sueltas, sinDatos: [...filas.values()].filter((x) => x.kg == null && x.repuesto == null && x.pvp == null) };
+    marcas.forEach((marca, i) => {
+      const antes = entre[i].siguiente;
+      const despues = entre[i + 1]?.anterior ?? tokens.slice(marca.fin);
+      // Una palabra desconocida puede ser otro producto. Sus números no se arrastran.
+      const desdeProducto = tramo => {
+        const corte = tramo.findIndex(x => x.palabra);
+        return corte < 0 ? tramo : tramo.slice(0, corte);
+      };
+      const nums = [...desdeProducto([...antes].reverse()).reverse(), ...desdeProducto(despues)];
+      const cong = marca.p.tipo === 'congelado';
+      const cantidad = nums.find(x => x.unidad === 'cantidad');
+      const precio = nums.find(x => x.unidad === 'precio');
+      const libres = nums.filter(x => !x.unidad);
+      const kg = cantidad?.num ?? libres.shift()?.num ?? null;
+      const importe = precio?.num ?? libres.shift()?.num ?? null;
+      const anterior = filas.get(marca.p.id);
+      if (anterior && !nums.length) {
+        anterior.repetido = true;
+        return;
+      }
+      filas.set(marca.p.id, {
+        p: marca.p,
+        kg: cong ? null : kg,
+        pvp: cong || importe == null ? null : Math.round(importe * 100),
+        repuesto: cong ? kg : null,
+        sobran: nums.length > (cong ? 1 : 2) || !!libres.length
+          || nums.filter(x => x.unidad === 'cantidad').length > 1
+          || nums.filter(x => x.unidad === 'precio').length > (cong ? 0 : 1),
+        repetido: !!anterior,
+      });
+    });
+  }
+  const todas = [...filas.values()];
+  const tieneDatos = x => x.kg != null || x.repuesto != null || x.pvp != null;
+  return { filas: todas.filter(tieneDatos), sueltas, sinDatos: todas.filter(x => !tieneDatos(x)) };
 }
 
 function pintarRevision(res) {
@@ -761,7 +814,7 @@ function pintarRevision(res) {
   const d = dias[f] || { fresco: {}, congelado: {} };
   if (!res.filas.length) {
     $('rapido-revision').innerHTML = `<div class="aviso">${ICONO.alerta}<div><strong>No he reconocido productos con cantidades</strong>
-      <p>Incluye el nombre del catálogo seguido de los kilos.</p></div></div>`;
+      <p>Prueba «boquerón gordo tres kilos» o «tres kilos de boquerón gordo».</p></div></div>`;
     return;
   }
 
@@ -1179,12 +1232,26 @@ $('terminar-cierre').addEventListener('click', () => {
   const f = $('fecha').value;
   if (dias[f]?.cerrado || bloqueoLectura) return;
   if (calcularDia(f).faltas.length) { mostrarFaltas(true); return; }
-  if (!confirm('¿Guardar los recuentos y cobros y terminar el cierre?')) return;
+  const aviso = $('confirmar-cierre');
+  aviso.dataset.fecha = f;
+  aviso.hidden = false;
+  $('cierre-confirmar').focus();
+  aviso.scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
+$('cierre-cancelar').addEventListener('click', () => {
+  $('confirmar-cierre').hidden = true;
+  $('terminar-cierre').focus();
+});
+$('cierre-confirmar').addEventListener('click', () => {
+  const f = $('fecha').value;
+  $('confirmar-cierre').hidden = true;
+  if ($('confirmar-cierre').dataset.fecha !== f || dias[f]?.cerrado || bloqueoLectura) return;
+  if (calcularDia(f).faltas.length) { mostrarFaltas(true); return; }
   const d = diaEditable(f);
   fijarFichas(f);
   const antes = MotorCierre.copia(d);
   try { MotorCierre.cerrar(d, fichasDelDia(f), new Date().toISOString(), horaActual()); }
-  catch { mostrarFaltas(true); return; }
+  catch (error) { mostrarFaltas(true); avisar(error.message || 'Revisa los datos del cierre.'); return; }
   if (!guardar()) { dias[f] = antes; return; }
   intentoCierre = false; pasoActual = 3; pintarDia(); window.scrollTo(0, 0);
 });

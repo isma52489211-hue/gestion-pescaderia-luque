@@ -21,7 +21,7 @@ Aplicación web para controlar la caja de la tienda de Luque **a partir del gén
 
 ## Rellenar rápido (coste cero)
 
-En «Dictar o pegar género», usa el micrófono del teclado o pega una lista. Por ejemplo, «boquerón mediano cinco kilos a ocho con cincuenta, dorada seis kilos». Si falta el precio, la revisión propone el del último día cuando existe. Revisa las cantidades y los precios antes de guardar la selección. Los productos repetidos o con números de más requieren revisión manual.
+En «Dictar o pegar género», usa el micrófono del teclado o pega una lista. Puedes dictar varias referencias de corrido. Por ejemplo, «boquerones gordos cinco kilos a seis euros, dos kilos de pijota a nueve euros». Si empiezas una referencia por los kilos, usa «de» antes del producto. «Bocalaíllo mediano» corresponde a Bacaladillas y «boquerón gordo» a Boquerón grande. Si falta el precio, la revisión propone el del último día cuando existe. Revisa las cantidades y los precios antes de guardar la selección. Los productos repetidos o con números de más requieren revisión manual.
 
 ## Cómo se revisa un cierre
 

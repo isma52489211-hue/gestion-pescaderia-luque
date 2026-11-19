@@ -103,9 +103,9 @@
         </section>
         <section class="tarjeta" id="rapido">
           <h2>Dictar o pegar género</h2>
-          <p class="ayuda">Toca el micrófono del teclado. Di producto, kilos y precio. Si el precio sigue igual, basta con decir los kilos.</p>
+          <p class="ayuda">Toca el micrófono del teclado y dicta varios productos seguidos. Puedes empezar por el producto o por los kilos. Si el precio sigue igual, puedes omitirlo.</p>
           <label>Lista del día
-            <textarea id="rapido-texto" rows="3" placeholder="Boquerón mediano 5 kilos a 8 con cincuenta&#10;Dorada 6 kilos"></textarea>
+            <textarea id="rapido-texto" rows="3" placeholder="Boquerones gordos cinco kilos a seis euros. Dos kilos de pijota a nueve euros."></textarea>
           </label>
           <button type="button" class="btn primario" id="rapido-leer">Revisar lista</button>
           <div id="rapido-revision"></div>
@@ -204,6 +204,13 @@
               <input id="legado-parte" type="text"></label>
             <div id="faltas-cierre" role="alert" tabindex="-1" hidden></div>
             <button type="button" class="btn primario" id="terminar-cierre">Terminar cierre</button>
+            <div id="confirmar-cierre" class="tarjeta" role="group" aria-labelledby="cierre-pregunta" hidden>
+              <p id="cierre-pregunta">¿Guardar los recuentos y cobros y terminar el cierre?</p>
+              <div class="botones">
+                <button type="button" class="btn primario" id="cierre-confirmar">Confirmar cierre</button>
+                <button type="button" class="btn secundario" id="cierre-cancelar">Seguir revisando</button>
+              </div>
+            </div>
           </div>
         </fieldset>
       </div>

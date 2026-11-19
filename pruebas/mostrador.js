@@ -67,7 +67,7 @@ function mover(tipo,cant,orden=1,extra={}) {
   if(tipo==='traslado') poner('#mov-destino','Baena');
   clic('#salida-anadir');
 }
-function cerrar() { clic('#terminar-cierre');verificar(q('#panel-3').hidden===false,'No abrió el informe: '+texto('#faltas-cierre'));igual(controles.errores,[]); }
+function cerrar() { clic('#terminar-cierre');clic('#cierre-confirmar');verificar(q('#panel-3').hidden===false,'No abrió el informe: '+texto('#faltas-cierre'));igual(controles.errores,[]); }
 function cajaVisible(esperado,cobrado,inicial=0,resto=inicial) { igual(cifras(),[esperado,cobrado,inicial,resto],'Cuatro cifras'); }
 async function importar(datos) {
   nav('productos');const archivo=new win.File([typeof datos==='string'?datos:JSON.stringify(datos)],'prueba-luque.json',{type:'application/json'});
@@ -126,7 +126,7 @@ async function ejecutar() {
     await cargar(false);paso(2);igual(q('[data-fresco=sobra]').value,'2');cerrar();cajaVisible(24,24);
   });
   await caso('Almacenamiento lleno: error visible, cierre no marcado, reintento y recarga',async()=>{
-    await cargar();apertura(2);controles.denegar=true;clic('#terminar-cierre');
+    await cargar();apertura(2);controles.denegar=true;clic('#terminar-cierre');clic('#cierre-confirmar');
     verificar(!q('#guardado-error').hidden && !q('#panel-2').hidden,'Dio por guardado un cierre fallido');
     controles.denegar=false;clic('#guardar-reintento');cerrar();await cargar(false);paso(3);cajaVisible(24,24);
   });
@@ -169,6 +169,33 @@ async function ejecutar() {
     igual(q('[data-fresco=kg][data-id=dorada]').value,'4');
     igual(q('[data-fresco=kg][data-id=boqueron]').value,'');
     verificar(!q('input[type=file][accept*="image"]'),'Sigue presente la carga de fotos');
+  });
+  await caso('Dictado flexible · reconoce expresiones de Luque y cantidades o precios en distinto orden', async () => {
+    const catalogo = [
+      ['chico', 'Boquerón chico'], ['mediano', 'Boquerón mediano'], ['grande', 'Boquerón grande'],
+      ['bacaladilla', 'Bacaladillas'], ['bacaladilla-chica', 'Bacaladillas chicas'], ['pijota', 'Pijotas'],
+    ].map(([id, nombre]) => ({ id, nombre, tipo:'fresco', merma:0 }));
+    await cargar(true, catalogo);
+    paso(1);
+    const revisar = entrada => { poner('#rapido-texto', entrada); clic('#rapido-leer'); };
+    const comprobar = (id, kg, pvp) => {
+      igual(q(`[data-rev=${id}] [data-campo=kg]`).value, kg);
+      igual(q(`[data-rev=${id}] [data-campo=pvp]`).value, pvp);
+    };
+    revisar('Boquerones grandes cinco kilos a seis euros bocalaíllo mediano dos kilos a ocho euros pijota cinco kilos a nueve euros');
+    comprobar('grande', '5', '6,00');
+    comprobar('bacaladilla', '2', '8,00');
+    comprobar('pijota', '5', '9,00');
+    revisar('Tres kilos de boquerón gordo a seis euros dos kilos de bacaladilla chica a ocho euros y después pijota a nueve euros cinco kilos');
+    comprobar('grande', '3', '6,00');
+    comprobar('bacaladilla-chica', '2', '8,00');
+    comprobar('pijota', '5', '9,00');
+    revisar('Boquerón chico medio kilo a seis euros boquerón mediano un kilo y medio a ocho euros');
+    comprobar('chico', '0,5', '6,00');
+    comprobar('mediano', '1,5', '8,00');
+    revisar('Boquerón gordo tres kilos género desconocido ocho kilos a nueve euros');
+    comprobar('grande', '3', '');
+    verificar(texto('#rapido-revision').includes('desconocido'),'Falta el aviso de género desconocido');
   });
   document.querySelector('#estado').dataset.terminado=fallos?'error':'ok';document.querySelector('#ejecutar').disabled=false;
 }
