@@ -590,7 +590,10 @@ function mostrarFaltas(intentar) {
   const r = calcularDia($('fecha').value), el = $('faltas-cierre');
   el.hidden = !!r.cerrado || !intentoCierre || !r.faltas.length;
   el.innerHTML = el.hidden ? '' : '<strong>Falta revisar</strong>' + problemas(r.faltas);
-  if (intentar && !el.hidden) el.focus();
+  if (intentar && !el.hidden) {
+    el.focus();
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
 }
 function pintarLote() {
   const id = $('lote-producto').value, lote = dias[$('fecha').value]?.lotes?.[id] || {};
@@ -1229,12 +1232,26 @@ $('terminar-cierre').addEventListener('click', () => {
   const f = $('fecha').value;
   if (dias[f]?.cerrado || bloqueoLectura) return;
   if (calcularDia(f).faltas.length) { mostrarFaltas(true); return; }
-  if (!confirm('¿Guardar los recuentos y cobros y terminar el cierre?')) return;
+  const aviso = $('confirmar-cierre');
+  aviso.dataset.fecha = f;
+  aviso.hidden = false;
+  $('cierre-confirmar').focus();
+  aviso.scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
+$('cierre-cancelar').addEventListener('click', () => {
+  $('confirmar-cierre').hidden = true;
+  $('terminar-cierre').focus();
+});
+$('cierre-confirmar').addEventListener('click', () => {
+  const f = $('fecha').value;
+  $('confirmar-cierre').hidden = true;
+  if ($('confirmar-cierre').dataset.fecha !== f || dias[f]?.cerrado || bloqueoLectura) return;
+  if (calcularDia(f).faltas.length) { mostrarFaltas(true); return; }
   const d = diaEditable(f);
   fijarFichas(f);
   const antes = MotorCierre.copia(d);
   try { MotorCierre.cerrar(d, fichasDelDia(f), new Date().toISOString(), horaActual()); }
-  catch { mostrarFaltas(true); return; }
+  catch (error) { mostrarFaltas(true); avisar(error.message || 'Revisa los datos del cierre.'); return; }
   if (!guardar()) { dias[f] = antes; return; }
   intentoCierre = false; pasoActual = 3; pintarDia(); window.scrollTo(0, 0);
 });

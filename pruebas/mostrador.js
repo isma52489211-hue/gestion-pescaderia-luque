@@ -67,7 +67,7 @@ function mover(tipo,cant,orden=1,extra={}) {
   if(tipo==='traslado') poner('#mov-destino','Baena');
   clic('#salida-anadir');
 }
-function cerrar() { clic('#terminar-cierre');verificar(q('#panel-3').hidden===false,'No abrió el informe: '+texto('#faltas-cierre'));igual(controles.errores,[]); }
+function cerrar() { clic('#terminar-cierre');clic('#cierre-confirmar');verificar(q('#panel-3').hidden===false,'No abrió el informe: '+texto('#faltas-cierre'));igual(controles.errores,[]); }
 function cajaVisible(esperado,cobrado,inicial=0,resto=inicial) { igual(cifras(),[esperado,cobrado,inicial,resto],'Cuatro cifras'); }
 async function importar(datos) {
   nav('productos');const archivo=new win.File([typeof datos==='string'?datos:JSON.stringify(datos)],'prueba-luque.json',{type:'application/json'});
@@ -126,7 +126,7 @@ async function ejecutar() {
     await cargar(false);paso(2);igual(q('[data-fresco=sobra]').value,'2');cerrar();cajaVisible(24,24);
   });
   await caso('Almacenamiento lleno: error visible, cierre no marcado, reintento y recarga',async()=>{
-    await cargar();apertura(2);controles.denegar=true;clic('#terminar-cierre');
+    await cargar();apertura(2);controles.denegar=true;clic('#terminar-cierre');clic('#cierre-confirmar');
     verificar(!q('#guardado-error').hidden && !q('#panel-2').hidden,'Dio por guardado un cierre fallido');
     controles.denegar=false;clic('#guardar-reintento');cerrar();await cargar(false);paso(3);cajaVisible(24,24);
   });
