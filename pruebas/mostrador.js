@@ -170,6 +170,33 @@ async function ejecutar() {
     igual(q('[data-fresco=kg][data-id=boqueron]').value,'');
     verificar(!q('input[type=file][accept*="image"]'),'Sigue presente la carga de fotos');
   });
+  await caso('Dictado flexible · reconoce expresiones de Luque y cantidades o precios en distinto orden', async () => {
+    const catalogo = [
+      ['chico', 'Boquerón chico'], ['mediano', 'Boquerón mediano'], ['grande', 'Boquerón grande'],
+      ['bacaladilla', 'Bacaladillas'], ['bacaladilla-chica', 'Bacaladillas chicas'], ['pijota', 'Pijotas'],
+    ].map(([id, nombre]) => ({ id, nombre, tipo:'fresco', merma:0 }));
+    await cargar(true, catalogo);
+    paso(1);
+    const revisar = entrada => { poner('#rapido-texto', entrada); clic('#rapido-leer'); };
+    const comprobar = (id, kg, pvp) => {
+      igual(q(`[data-rev=${id}] [data-campo=kg]`).value, kg);
+      igual(q(`[data-rev=${id}] [data-campo=pvp]`).value, pvp);
+    };
+    revisar('Boquerones grandes cinco kilos a seis euros bocalaíllo mediano dos kilos a ocho euros pijota cinco kilos a nueve euros');
+    comprobar('grande', '5', '6,00');
+    comprobar('bacaladilla', '2', '8,00');
+    comprobar('pijota', '5', '9,00');
+    revisar('Tres kilos de boquerón gordo a seis euros dos kilos de bacaladilla chica a ocho euros y después pijota a nueve euros cinco kilos');
+    comprobar('grande', '3', '6,00');
+    comprobar('bacaladilla-chica', '2', '8,00');
+    comprobar('pijota', '5', '9,00');
+    revisar('Boquerón chico medio kilo a seis euros boquerón mediano un kilo y medio a ocho euros');
+    comprobar('chico', '0,5', '6,00');
+    comprobar('mediano', '1,5', '8,00');
+    revisar('Boquerón gordo tres kilos género desconocido ocho kilos a nueve euros');
+    comprobar('grande', '3', '');
+    verificar(texto('#rapido-revision').includes('desconocido'),'Falta el aviso de género desconocido');
+  });
   document.querySelector('#estado').dataset.terminado=fallos?'error':'ok';document.querySelector('#ejecutar').disabled=false;
 }
 document.querySelector('#ejecutar').onclick=()=>ejecutar().catch(e=>{document.querySelector('#estado').textContent=e.message;document.querySelector('#estado').dataset.terminado='error';});
